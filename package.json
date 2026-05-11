@@ -1,6 +1,6 @@
 {
   "name": "pi-lsp-lite",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "pi extension: feeds LSP diagnostics back to the agent after every write/edit. Go, Rust, and TypeScript.",
   "type": "module",
   "private": false,
@@ -22,10 +22,11 @@
     "vscode-languageserver-protocol": "^3.17.5"
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
+    "@earendil-works/pi-coding-agent": "*",
     "typebox": "*"
   },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.74.0",
     "@types/node": "^20.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.4.0"

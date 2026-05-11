@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createServerManager } from "./src/server-manager.js";
 import { languageForFile, checkExtensionOverlaps } from "./src/languages.js";
 import { formatDiagnostics } from "./src/format.js";
