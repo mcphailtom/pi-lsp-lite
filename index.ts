@@ -2,21 +2,21 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createServerManager } from "./src/server-manager.js";
 import { languageForFile, checkExtensionOverlaps, type LanguageServerConfig } from "./src/languages.js";
 import { formatDiagnostics } from "./src/format.js";
-import { loadConfig, type ResolvedConfig } from "./src/config.js";
+import { loadConfig } from "./src/config.js";
 import { resolve, relative, isAbsolute } from "node:path";
 
 export default function (pi: ExtensionAPI) {
-  let config: ResolvedConfig | null = null;
   let servers: LanguageServerConfig[] = [];
   let manager = createServerManager({});
 
   async function initConfig(cwd: string) {
-    config = await loadConfig(cwd);
-    servers = config.servers;
+    await manager.shutdownAll();
+    const resolved = await loadConfig(cwd);
+    servers = resolved.servers;
     manager = createServerManager({
-      diagnosticTimeout: config.diagnosticTimeout,
-      documentIdleTimeout: config.documentIdleTimeout,
-      perServerTimeout: config.perServerTimeout,
+      diagnosticTimeout: resolved.diagnosticTimeout,
+      documentIdleTimeout: resolved.documentIdleTimeout,
+      perServerTimeout: resolved.perServerTimeout,
     });
 
     for (const warning of checkExtensionOverlaps(servers)) {
@@ -62,10 +62,10 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerCommand("lsp-status", {
     description: "Show running LSP servers and recent diagnostic counts",
-    handler: async (_args, _ctx) => {
+    handler: async (_args, ctx) => {
       const running = manager.status();
       if (running.length === 0) {
-        _ctx.ui.notify("pi-lsp-lite: no servers running", "info");
+        ctx.ui.notify("pi-lsp-lite: no servers running", "info");
         return;
       }
       const lines = running.map((s) => {
@@ -73,7 +73,7 @@ export default function (pi: ExtensionAPI) {
         const up = Math.round(s.uptime / 1000);
         return `${s.id} (pid ${s.pid}) root=${s.root} — ${s.openDocuments} open files, up ${up}s, idle ${idle}s`;
       });
-      _ctx.ui.notify(lines.join("\n"), "info");
+      ctx.ui.notify(lines.join("\n"), "info");
     },
   });
 }

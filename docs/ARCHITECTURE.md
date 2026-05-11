@@ -67,17 +67,18 @@ Before sending a change, the client snapshots diagnostic counts for all tracked 
 
 ## Configuration loading
 
-Config is loaded in two layers at `session_start`:
+Config is loaded in three layers at `session_start`:
 
 1. **Built-in defaults** from `src/languages.ts` (go, rust, typescript)
 2. **Global config** from `~/.pi-lsp-lite.json`
 3. **Project config** from `.pi-lsp-lite.json` or `.pi/lsp-lite.json` in the session's cwd
 
 Each layer merges over the previous:
-- New server IDs are added
+- New server IDs are added (global config only — project config cannot define new servers for security)
 - Existing server IDs are partially overridden (only specified fields change)
-- `"disabled": true` removes the server entirely
+- `"disabled": true` removes the server entirely (re-enabling in a later layer requires redefining the full server config)
 - Timeout overrides (`diagnosticTimeout`, `documentIdleTimeout`) cascade from global to per-server
+- Timeout values are clamped to safe bounds
 
 Config is not hot-reloaded — `/reload` picks up changes via `session_start`.
 

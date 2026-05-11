@@ -214,3 +214,66 @@ describe("ServerManager", () => {
     assert.ok(elapsed < 15_000, `shutdownAll took ${elapsed}ms, expected < 15s`);
   });
 });
+
+describe("ServerManagerOptions", () => {
+  it("diagnosticTimeout: short timeout causes timeout result when server is slow", async () => {
+    const slowConfig: LanguageServerConfig = {
+      id: "fake-slow",
+      extensions: [".go"],
+      command: tsxPath,
+      args: [fakeServerPath, "--run", '--options={"diagnosticDelay":2000}'],
+      rootPatterns: ["go.mod"],
+    };
+    const manager = createServerManager({ diagnosticTimeout: 200 });
+    const dir = await makeTempDir();
+    await writeFile(join(dir, "go.mod"), "module test");
+    const filePath = join(dir, "main.go");
+    await writeFile(filePath, "package main");
+
+    const result = await manager.handleEdit(filePath, slowConfig, dir);
+    assert.equal(result.status, "timeout");
+
+    await manager.shutdownAll();
+  });
+
+  it("perServerTimeout overrides global diagnosticTimeout for the named server", async () => {
+    const slowConfig: LanguageServerConfig = {
+      id: "fake-slow2",
+      extensions: [".go"],
+      command: tsxPath,
+      args: [fakeServerPath, "--run", '--options={"diagnosticDelay":2000}'],
+      rootPatterns: ["go.mod"],
+    };
+    // global timeout is generous, but per-server timeout for fake-slow2 is very short
+    const manager = createServerManager({
+      diagnosticTimeout: 10_000,
+      perServerTimeout: new Map([["fake-slow2", 200]]),
+    });
+    const dir = await makeTempDir();
+    await writeFile(join(dir, "go.mod"), "module test");
+    const filePath = join(dir, "main.go");
+    await writeFile(filePath, "package main");
+
+    const result = await manager.handleEdit(filePath, slowConfig, dir);
+    assert.equal(result.status, "timeout");
+
+    await manager.shutdownAll();
+  });
+
+  it("perServerTimeout does not affect other servers", async () => {
+    // fake server (id=fake) responds promptly; perServerTimeout only targets another id
+    const manager = createServerManager({
+      diagnosticTimeout: 5_000,
+      perServerTimeout: new Map([["unrelated", 1]]),
+    });
+    const dir = await makeTempDir();
+    await writeFile(join(dir, "go.mod"), "module test");
+    const filePath = join(dir, "main.go");
+    await writeFile(filePath, "package main");
+
+    const result = await manager.handleEdit(filePath, fakeConfig, dir);
+    assert.equal(result.status, "ok");
+
+    await manager.shutdownAll();
+  });
+});

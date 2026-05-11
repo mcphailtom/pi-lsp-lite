@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { which, fileUri, findWorkspaceRoot } from "./util.js";
 import { createLspClient, type LspClient, type DiagnosticResult } from "./client.js";
 import type { LanguageServerConfig } from "./languages.js";
+import { DEFAULT_DIAGNOSTIC_TIMEOUT, DEFAULT_DOCUMENT_IDLE_TIMEOUT } from "./config.js";
 import { readFile } from "node:fs/promises";
 
 interface ManagedServer {
@@ -43,8 +44,8 @@ export interface ServerManagerOptions {
 }
 
 export function createServerManager(options: ServerManagerOptions = {}): ServerManager {
-  const diagnosticTimeout = options.diagnosticTimeout ?? 5_000;
-  const documentIdleTimeout = options.documentIdleTimeout ?? 120_000;
+  const diagnosticTimeout = options.diagnosticTimeout ?? DEFAULT_DIAGNOSTIC_TIMEOUT;
+  const documentIdleTimeout = options.documentIdleTimeout ?? DEFAULT_DOCUMENT_IDLE_TIMEOUT;
   const perServerTimeout = options.perServerTimeout ?? new Map();
   const servers = new Map<string, ManagedServer>();
   const pending = new Map<string, Promise<ManagedServer | null>>();
