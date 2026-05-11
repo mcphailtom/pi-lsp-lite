@@ -1,8 +1,6 @@
 # pi-lsp-lite
 
-[pi](https://github.com/mariozechner/pi) extension that feeds LSP diagnostics back to the agent after every `write` and `edit`. Go, Rust, and TypeScript via `gopls`, `rust-analyzer`, and `typescript-language-server`.
-
-The agent sees errors and warnings inline on the same turn as the edit that caused them.
+Just LSP diagnostics for [pi](https://github.com/mariozechner/pi) — errors and warnings on every edit, same turn. Go, Rust, TypeScript.
 
 ## Install
 
