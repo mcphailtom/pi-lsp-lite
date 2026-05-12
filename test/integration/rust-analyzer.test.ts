@@ -35,12 +35,15 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
   });
 
   it("reports syntax error", async () => {
-    // write invalid code into main.rs (the module root, so no unlinked-file warning)
     await writeFile(join(srcDir, "main.rs"), "fn main() {\n  let x = \n}\n");
 
     const result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
     assert.equal(result.status, "ok");
     assert.ok(result.diagnostics.length > 0, "expected at least one diagnostic for syntax error");
+
+    // fix so the server is clean before the next test
+    await writeFile(join(srcDir, "main.rs"), "fn main() {}\n");
+    await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
   });
 
   it("reports no errors for clean file", async () => {
