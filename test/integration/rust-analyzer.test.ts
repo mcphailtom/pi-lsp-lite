@@ -1,4 +1,4 @@
-import { describe, it, before, afterEach } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -9,9 +9,6 @@ import { builtinLanguages as languages } from "../../src/languages.js";
 const rustConfig = languages.find((l) => l.id === "rust")!;
 
 let tempDirs: string[] = [];
-let managers: ReturnType<typeof createServerManager>[] = [];
-let sharedDir: string;
-let sharedManager: ReturnType<typeof createServerManager>;
 
 async function makeTempDir(): Promise<string> {
   const dir = join(tmpdir(), `pi-lsp-rust-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -20,37 +17,25 @@ async function makeTempDir(): Promise<string> {
   return dir;
 }
 
-function makeManager() {
-  const m = createServerManager({ diagnosticTimeout: 15_000 });
-  managers.push(m);
-  return m;
-}
-
-afterEach(async () => {
-  for (const m of managers) {
-    if (m !== sharedManager) await m.shutdownAll();
-  }
-  managers = [];
-  for (const dir of tempDirs) {
-    if (dir !== sharedDir) await rm(dir, { recursive: true, force: true }).catch(() => {});
-  }
-  tempDirs = [];
-});
-
 describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => {
+  let manager: ReturnType<typeof createServerManager>;
+
   before(async () => {
-    // warmup: spawn rust-analyzer and let it index a minimal crate
-    sharedDir = await makeTempDir();
+    manager = createServerManager({ diagnosticTimeout: 15_000 });
+    const dir = await makeTempDir();
     await writeFile(
-      join(sharedDir, "Cargo.toml"),
+      join(dir, "Cargo.toml"),
       '[package]\nname = "warmup"\nversion = "0.1.0"\nedition = "2021"\n',
     );
-    const srcDir = join(sharedDir, "src");
+    const srcDir = join(dir, "src");
     await mkdir(srcDir, { recursive: true });
     await writeFile(join(srcDir, "main.rs"), "fn main() {}\n");
-    sharedManager = makeManager();
-    await sharedManager.handleEdit(join(srcDir, "main.rs"), rustConfig, sharedDir);
-    await sharedManager.shutdownAll();
+    await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
+  });
+
+  after(async () => {
+    await manager.shutdownAll();
+    for (const dir of tempDirs) await rm(dir, { recursive: true, force: true }).catch(() => {});
   });
 
   it("reports syntax error", async () => {
@@ -64,7 +49,6 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
     const filePath = join(srcDir, "main.rs");
     await writeFile(filePath, "fn main() {\n  let x = \n}\n");
 
-    const manager = makeManager();
     const result = await manager.handleEdit(filePath, rustConfig, dir);
     assert.equal(result.status, "ok");
     assert.ok(result.diagnostics.length > 0, "expected at least one diagnostic for syntax error");
@@ -81,7 +65,6 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
     const filePath = join(srcDir, "main.rs");
     await writeFile(filePath, 'fn main() {\n    println!("hello");\n}\n');
 
-    const manager = makeManager();
     const result = await manager.handleEdit(filePath, rustConfig, dir);
     assert.equal(result.status, "ok");
     assert.equal(result.diagnostics.length, 0);
@@ -104,7 +87,6 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
       'mod lib;\n\nfn main() {\n    println!("{}", lib::add(1, 2));\n}\n',
     );
 
-    const manager = makeManager();
     await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
     await manager.handleEdit(join(srcDir, "lib.rs"), rustConfig, dir);
 

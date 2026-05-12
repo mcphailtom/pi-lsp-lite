@@ -1,4 +1,4 @@
-import { describe, it, before, afterEach } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -10,9 +10,6 @@ const tsConfig = languages.find((l) => l.id === "typescript");
 if (!tsConfig) throw new Error("typescript config not found in languages");
 
 let tempDirs: string[] = [];
-let managers: ReturnType<typeof createServerManager>[] = [];
-let sharedDir: string;
-let sharedManager: ReturnType<typeof createServerManager>;
 
 async function makeTempDir(): Promise<string> {
   const dir = join(tmpdir(), `pi-lsp-ts-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -21,35 +18,24 @@ async function makeTempDir(): Promise<string> {
   return dir;
 }
 
-function makeManager() {
-  const m = createServerManager({ diagnosticTimeout: 15_000 });
-  managers.push(m);
-  return m;
-}
-
-afterEach(async () => {
-  for (const m of managers) {
-    if (m !== sharedManager) await m.shutdownAll();
-  }
-  managers = [];
-  for (const dir of tempDirs) {
-    if (dir !== sharedDir) await rm(dir, { recursive: true, force: true }).catch(() => {});
-  }
-  tempDirs = [];
-});
-
 describe("typescript-language-server integration", { skip: !process.env.INTEGRATION }, () => {
+  let manager: ReturnType<typeof createServerManager>;
+
   before(async () => {
-    // warmup: spawn typescript-language-server and let it initialize
-    sharedDir = await makeTempDir();
+    manager = createServerManager({ diagnosticTimeout: 15_000 });
+    // warmup: force server spawn + indexing on a minimal project
+    const dir = await makeTempDir();
     await writeFile(
-      join(sharedDir, "tsconfig.json"),
+      join(dir, "tsconfig.json"),
       JSON.stringify({ compilerOptions: { strict: true, noEmit: true } }),
     );
-    await writeFile(join(sharedDir, "warmup.ts"), "const x = 1;\n");
-    sharedManager = makeManager();
-    await sharedManager.handleEdit(join(sharedDir, "warmup.ts"), tsConfig, sharedDir);
-    await sharedManager.shutdownAll();
+    await writeFile(join(dir, "warmup.ts"), "const x = 1;\n");
+    await manager.handleEdit(join(dir, "warmup.ts"), tsConfig, dir);
+  });
+
+  after(async () => {
+    await manager.shutdownAll();
+    for (const dir of tempDirs) await rm(dir, { recursive: true, force: true }).catch(() => {});
   });
 
   it("reports type error", async () => {
@@ -61,7 +47,6 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
     const filePath = join(dir, "main.ts");
     await writeFile(filePath, "const x: number = 'hello';\n");
 
-    const manager = makeManager();
     const result = await manager.handleEdit(filePath, tsConfig, dir);
     assert.equal(result.status, "ok");
     assert.ok(result.diagnostics.length > 0, "expected at least one diagnostic for type error");
@@ -76,7 +61,6 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
     const filePath = join(dir, "main.ts");
     await writeFile(filePath, "const x: number = 42;\nconsole.log(x);\n");
 
-    const manager = makeManager();
     const result = await manager.handleEdit(filePath, tsConfig, dir);
     assert.equal(result.status, "ok");
     assert.equal(result.diagnostics.length, 0);
@@ -97,7 +81,6 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
       "import { add } from './lib';\nconsole.log(add(1, 2));\n",
     );
 
-    const manager = makeManager();
     await manager.handleEdit(join(dir, "main.ts"), tsConfig, dir);
     await manager.handleEdit(join(dir, "lib.ts"), tsConfig, dir);
 
