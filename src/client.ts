@@ -211,8 +211,7 @@ export function createLspClient(child: ChildProcess): LspClient {
         // edited file is valid but dependents break
         crossFileCallback = (changedUri: string) => {
           if (settled || changedUri === uri) return;
-          const pre = preSnapshot.get(changedUri);
-          if (!pre) return;
+          const pre = preSnapshot.get(changedUri) ?? { errors: 0, warnings: 0 };
           const post = countDiagnostics(diagnosticsMap.get(changedUri)?.diagnostics ?? []);
           if (post.errors !== pre.errors || post.warnings !== pre.warnings) {
             clearTimeout(timeout);

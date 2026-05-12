@@ -52,7 +52,7 @@ Diagnostic collection uses a two-trigger approach to handle both direct and cros
 
 **Trigger 1 — target URI publishes:** When the edited file receives diagnostics, start a 200ms quiescence countdown. If no more diagnostics arrive within 200ms, settle.
 
-**Trigger 2 — cross-file callback:** When *any* URI receives diagnostics, compare its new counts to the pre-snapshot. If counts changed (genuine cross-file impact), start the same 200ms quiescence countdown.
+**Trigger 2 — cross-file callback:** When *any* URI receives diagnostics, compare its new counts to the pre-snapshot (or zero if the URI was never tracked before). If counts changed (genuine cross-file impact), start the same 200ms quiescence countdown. This handles both previously-opened files and files the server publishes for autonomously (e.g. a dependent module never explicitly opened by the agent).
 
 **Why quiescence, not immediate settle:** LSP servers often publish diagnostics for multiple files in rapid succession after a change. The 200ms window collects them all before reporting.
 
