@@ -4,6 +4,7 @@ export interface LanguageServerConfig {
   command: string;
   args: string[];
   rootPatterns: string[];
+  diagnosticTimeout?: number;
 }
 
 export const builtinLanguages: LanguageServerConfig[] = [
@@ -13,6 +14,7 @@ export const builtinLanguages: LanguageServerConfig[] = [
     command: "gopls",
     args: ["serve"],
     rootPatterns: ["go.mod"],
+    diagnosticTimeout: 5_000,
   },
   {
     id: "rust",
@@ -20,6 +22,7 @@ export const builtinLanguages: LanguageServerConfig[] = [
     command: "rust-analyzer",
     args: [],
     rootPatterns: ["Cargo.toml"],
+    diagnosticTimeout: 30_000,
   },
   {
     id: "typescript",
@@ -27,6 +30,7 @@ export const builtinLanguages: LanguageServerConfig[] = [
     command: "typescript-language-server",
     args: ["--stdio"],
     rootPatterns: ["tsconfig.json", "package.json"],
+    diagnosticTimeout: 30_000,
   },
 ];
 

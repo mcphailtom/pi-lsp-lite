@@ -1,4 +1,4 @@
-import { describe, it, before, afterEach } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -8,93 +8,52 @@ import { builtinLanguages as languages } from "../../src/languages.js";
 
 const rustConfig = languages.find((l) => l.id === "rust")!;
 
-let tempDirs: string[] = [];
-let managers: ReturnType<typeof createServerManager>[] = [];
-let sharedDir: string;
-let sharedManager: ReturnType<typeof createServerManager>;
-
-async function makeTempDir(): Promise<string> {
-  const dir = join(tmpdir(), `pi-lsp-rust-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  await mkdir(dir, { recursive: true });
-  tempDirs.push(dir);
-  return dir;
-}
-
-function makeManager() {
-  const m = createServerManager();
-  managers.push(m);
-  return m;
-}
-
-afterEach(async () => {
-  for (const m of managers) {
-    if (m !== sharedManager) await m.shutdownAll();
-  }
-  managers = [];
-  for (const dir of tempDirs) {
-    if (dir !== sharedDir) await rm(dir, { recursive: true, force: true }).catch(() => {});
-  }
-  tempDirs = [];
-});
-
 describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => {
-  before(async () => {
-    // warmup: spawn rust-analyzer and let it index a minimal crate
-    sharedDir = await makeTempDir();
-    await writeFile(
-      join(sharedDir, "Cargo.toml"),
-      '[package]\nname = "warmup"\nversion = "0.1.0"\nedition = "2021"\n',
-    );
-    const srcDir = join(sharedDir, "src");
-    await mkdir(srcDir, { recursive: true });
-    await writeFile(join(srcDir, "main.rs"), "fn main() {}\n");
-    sharedManager = makeManager();
-    await sharedManager.handleEdit(join(srcDir, "main.rs"), rustConfig, sharedDir);
-    await sharedManager.shutdownAll();
-  });
+  let manager: ReturnType<typeof createServerManager>;
+  let dir: string;
+  let srcDir: string;
 
-  it("reports syntax error", async () => {
-    const dir = await makeTempDir();
+  before(async () => {
+    manager = createServerManager();
+    dir = join(tmpdir(), `pi-lsp-rust-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    srcDir = join(dir, "src");
+    await mkdir(srcDir, { recursive: true });
     await writeFile(
       join(dir, "Cargo.toml"),
       '[package]\nname = "test"\nversion = "0.1.0"\nedition = "2021"\n',
     );
-    const srcDir = join(dir, "src");
-    await mkdir(srcDir, { recursive: true });
-    const filePath = join(srcDir, "main.rs");
-    await writeFile(filePath, "fn main() {\n  let x = \n}\n");
 
-    const manager = makeManager();
-    const result = await manager.handleEdit(filePath, rustConfig, dir);
+    // warmup: absorb cold start
+    await writeFile(join(srcDir, "main.rs"), "fn main() {}\n");
+    const warmup = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
+    assert.notEqual(warmup.status, "unavailable", "rust-analyzer is not available — cannot run integration tests");
+  });
+
+  after(async () => {
+    await manager.shutdownAll();
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  });
+
+  it("reports syntax error", async () => {
+    // write invalid code into main.rs (the module root, so no unlinked-file warning)
+    await writeFile(join(srcDir, "main.rs"), "fn main() {\n  let x = \n}\n");
+
+    const result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
     assert.equal(result.status, "ok");
     assert.ok(result.diagnostics.length > 0, "expected at least one diagnostic for syntax error");
   });
 
   it("reports no errors for clean file", async () => {
-    const dir = await makeTempDir();
-    await writeFile(
-      join(dir, "Cargo.toml"),
-      '[package]\nname = "test"\nversion = "0.1.0"\nedition = "2021"\n',
-    );
-    const srcDir = join(dir, "src");
-    await mkdir(srcDir, { recursive: true });
-    const filePath = join(srcDir, "main.rs");
-    await writeFile(filePath, 'fn main() {\n    println!("hello");\n}\n');
+    // restore valid main.rs
+    await writeFile(join(srcDir, "main.rs"), 'fn main() {\n    println!("hello");\n}\n');
 
-    const manager = makeManager();
-    const result = await manager.handleEdit(filePath, rustConfig, dir);
+    const result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
     assert.equal(result.status, "ok");
     assert.equal(result.diagnostics.length, 0);
   });
 
   it("detects cross-file breakage", async () => {
-    const dir = await makeTempDir();
-    await writeFile(
-      join(dir, "Cargo.toml"),
-      '[package]\nname = "test"\nversion = "0.1.0"\nedition = "2021"\n',
-    );
-    const srcDir = join(dir, "src");
-    await mkdir(srcDir, { recursive: true });
+    // create lib.rs as a module declared from main.rs
     await writeFile(
       join(srcDir, "lib.rs"),
       "pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n",
@@ -104,7 +63,6 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
       'mod lib;\n\nfn main() {\n    println!("{}", lib::add(1, 2));\n}\n',
     );
 
-    const manager = makeManager();
     await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
     await manager.handleEdit(join(srcDir, "lib.rs"), rustConfig, dir);
 
