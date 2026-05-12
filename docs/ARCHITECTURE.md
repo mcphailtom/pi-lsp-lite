@@ -44,9 +44,52 @@ Each `didOpen` and `didChange` increments a generation counter for that URI. The
 
 Each `ManagedServer` has an `editQueue` promise chain. Edits to the same server are serialized so that `waitForDiagnostics` never has concurrent waiters on the same client. Different servers (different languages or different workspace roots) run in parallel.
 
-### Snapshot-diff for cross-file diagnostics
+### Snapshot-diff with quiescence-based settling
 
-Before sending a change, the client snapshots diagnostic counts for all tracked URIs. After the 50ms settle window, it compares counts and reports any file whose error/warning count increased. This works for both previously-opened files and files the server publishes diagnostics for autonomously.
+Diagnostic collection uses a two-trigger approach to handle both direct and cross-file diagnostics:
+
+**Pre-snapshot:** Before sending `didChange`, snapshot error/warning counts for all tracked URIs.
+
+**Trigger 1 — target URI publishes:** When the edited file receives diagnostics, start a 200ms quiescence countdown. If no more diagnostics arrive within 200ms, settle.
+
+**Trigger 2 — cross-file callback:** When *any* URI receives diagnostics, compare its new counts to the pre-snapshot. If counts changed (genuine cross-file impact), start the same 200ms quiescence countdown.
+
+**Why quiescence, not immediate settle:** LSP servers often publish diagnostics for multiple files in rapid succession after a change. The 200ms window collects them all before reporting.
+
+**Why compare against the snapshot:** A stale re-publish (server re-confirming existing diagnostics) doesn't change counts relative to the snapshot, so it's ignored. Only genuine impact from the current edit triggers settling. This prevents false positives when the server republishes for unrelated files.
+
+**Timeout fallback:** If neither trigger fires within the per-language timeout (gopls: 5s, rust-analyzer: 30s, typescript: 30s), the wait settles with `status: "timeout"`. Cross-file data collected up to that point is still included in `otherFiles`.
+
+```
+handleEdit(lib.ts):
+  snapshot: { caller.ts: {errors:0} }
+  send didChange(lib.ts)
+  │
+  ├─ server publishes for caller.ts: [{error}]
+  │  crossFileCallback: pre={errors:0}, post={errors:1} → CHANGED
+  │  → start 200ms quiescence
+  │
+  ├─ server publishes for type_error.ts: [] (stale re-publish)
+  │  crossFileCallback: pre={errors:0}, post={errors:0} → UNCHANGED
+  │  → ignored
+  │
+  ├─ 200ms pass, no more publishes
+  │  → settle("ok")
+  │
+  └─ result: { status:"ok", diagnostics:[], otherFiles:[{caller.ts, errors:1}] }
+```
+
+### Per-language diagnostic timeouts
+
+Each built-in language server has a default diagnostic timeout calibrated to its real-world performance:
+
+| Server | Timeout | Rationale |
+|--------|---------|----------|
+| gopls | 5s | Fast indexing, quick diagnostics even on cold start |
+| rust-analyzer | 30s | Slow cold start, needs time for workspace indexing |
+| typescript-language-server | 30s | Cross-file analysis can be slow on workspace changes |
+
+Timeouts are overridable via `.pi-lsp-lite.json` (global `diagnosticTimeout` or per-server `servers.<id>.diagnosticTimeout`).
 
 ### Workspace root detection
 
