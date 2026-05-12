@@ -8,39 +8,72 @@ permissions:
   contents: read
 
 jobs:
-  integration:
-    name: integration tests
+  gopls:
+    name: gopls
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
       - uses: actions/setup-go@v5
         with:
           go-version: stable
+      - run: go install golang.org/x/tools/gopls@latest
+      - run: npm ci
+      - run: INTEGRATION=1 npx tsx --test test/*.test.ts test/integration/gopls.test.ts
 
-      - name: install gopls
-        run: go install golang.org/x/tools/gopls@latest
-
-      - name: install rust-analyzer
-        run: |
+  rust-analyzer:
+    name: rust-analyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: |
           rustup update stable
           rustup component add rust-analyzer
-
-      - name: install typescript-language-server
-        run: npm install -g typescript-language-server typescript
-
-      - name: install pylsp
-        run: pip install 'python-lsp-server[all]'
-
-      - name: install clangd
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq clangd
-
       - run: npm ci
+      - run: INTEGRATION=1 npx tsx --test test/*.test.ts test/integration/rust-analyzer.test.ts
 
-      - name: integration tests
-        run: npm run test:integration
+  typescript:
+    name: typescript-language-server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install -g typescript-language-server typescript
+      - run: npm ci
+      - run: INTEGRATION=1 npx tsx --test test/*.test.ts test/integration/typescript.test.ts
+
+  pylsp:
+    name: pylsp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: pip install 'python-lsp-server[all]'
+      - run: npm ci
+      - run: INTEGRATION=1 npx tsx --test test/*.test.ts test/integration/pylsp.test.ts
+
+  clangd:
+    name: clangd
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq clangd
+      - run: npm ci
+      - run: INTEGRATION=1 npx tsx --test test/*.test.ts test/integration/clangd.test.ts
