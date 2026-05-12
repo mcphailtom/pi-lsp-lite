@@ -210,7 +210,10 @@ export function createServerManager(options: ServerManagerOptions = {}): ServerM
     }
     server.openDocuments.set(uri, Date.now());
 
-    return server.client.waitForDiagnostics(uri, perServerTimeout.get(server.config.id) ?? diagnosticTimeout);
+    return server.client.waitForDiagnostics(
+      uri,
+      perServerTimeout.get(server.config.id) ?? server.config.diagnosticTimeout ?? diagnosticTimeout,
+    );
   }
 
   return {

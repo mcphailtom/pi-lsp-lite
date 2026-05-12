@@ -39,6 +39,7 @@ export interface LspClient {
 }
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
+const QUIESCENCE_MS = 200;
 
 function countDiagnostics(diags: Diagnostic[]): { errors: number; warnings: number } {
   let errors = 0;
@@ -70,21 +71,21 @@ export function createLspClient(child: ChildProcess): LspClient {
   const diagnosticsMap = new Map<string, DiagnosticEntry>();
   const documentVersion = new Map<string, number>();
   const uriGeneration = new Map<string, number>();
+  let crossFileCallback: ((changedUri: string) => void) | null = null;
 
   connection.onNotification(PublishDiagnosticsNotification.type, (params) => {
     const entry = diagnosticsMap.get(params.uri);
     if (entry) {
-      // only accept diagnostics for the current generation of this URI
       const currentGen = uriGeneration.get(params.uri) ?? 0;
       if (entry.generation !== currentGen) return;
       entry.diagnostics = params.diagnostics;
       entry.received = true;
       entry.resolve?.();
     } else {
-      // cross-file diagnostics for URIs we haven't opened — accept them
       const gen = uriGeneration.get(params.uri) ?? 0;
       diagnosticsMap.set(params.uri, { diagnostics: params.diagnostics, generation: gen, received: true });
     }
+    if (crossFileCallback) crossFileCallback(params.uri);
   });
 
   connection.listen();
@@ -137,7 +138,6 @@ export function createLspClient(child: ChildProcess): LspClient {
     },
 
     didClose(uri: string) {
-      // bump generation so any in-flight diagnostics for the old open are rejected
       const gen = (uriGeneration.get(uri) ?? 0) + 1;
       uriGeneration.set(uri, gen);
       connection.sendNotification(DidCloseTextDocumentNotification.type, {
@@ -150,7 +150,6 @@ export function createLspClient(child: ChildProcess): LspClient {
     async waitForDiagnostics(uri: string, timeoutMs: number): Promise<DiagnosticResult> {
       const targetGen = uriGeneration.get(uri) ?? 0;
 
-      // snapshot diagnostic counts for all other tracked URIs before the edit settles
       const preSnapshot = new Map<string, { errors: number; warnings: number }>();
       for (const [trackedUri, entry] of diagnosticsMap) {
         if (trackedUri !== uri) {
@@ -174,19 +173,25 @@ export function createLspClient(child: ChildProcess): LspClient {
       };
 
       return new Promise<DiagnosticResult>((resolve) => {
-        const SETTLE_MS = 50;
         let settled = false;
+        let quiescenceTimer: ReturnType<typeof setTimeout> | null = null;
 
         const settle = (status: "ok" | "timeout") => {
           if (settled) return;
           settled = true;
-          setTimeout(() => {
-            resolve({
-              status,
-              diagnostics: diagnosticsMap.get(uri)?.diagnostics ?? [],
-              otherFiles: collectOtherFiles(),
-            });
-          }, SETTLE_MS);
+          crossFileCallback = null;
+          if (quiescenceTimer) clearTimeout(quiescenceTimer);
+          resolve({
+            status,
+            diagnostics: diagnosticsMap.get(uri)?.diagnostics ?? [],
+            otherFiles: collectOtherFiles(),
+          });
+        };
+
+        const resetQuiescence = () => {
+          if (settled) return;
+          if (quiescenceTimer) clearTimeout(quiescenceTimer);
+          quiescenceTimer = setTimeout(() => settle("ok"), QUIESCENCE_MS);
         };
 
         const timeout = setTimeout(() => {
@@ -194,15 +199,30 @@ export function createLspClient(child: ChildProcess): LspClient {
         }, timeoutMs);
 
         const entry = diagnosticsMap.get(uri) ?? { diagnostics: [], generation: targetGen, received: false };
+
+        entry.resolve = () => {
+          clearTimeout(timeout);
+          resetQuiescence();
+        };
+        diagnosticsMap.set(uri, entry);
+
+        // when a non-target URI publishes diagnostics that differ from the
+        // pre-snapshot, start quiescence — this catches the case where the
+        // edited file is valid but dependents break
+        crossFileCallback = (changedUri: string) => {
+          if (settled || changedUri === uri) return;
+          const pre = preSnapshot.get(changedUri);
+          if (!pre) return;
+          const post = countDiagnostics(diagnosticsMap.get(changedUri)?.diagnostics ?? []);
+          if (post.errors !== pre.errors || post.warnings !== pre.warnings) {
+            clearTimeout(timeout);
+            resetQuiescence();
+          }
+        };
+
         if (entry.received) {
           clearTimeout(timeout);
-          settle("ok");
-        } else {
-          entry.resolve = () => {
-            clearTimeout(timeout);
-            settle("ok");
-          };
-          diagnosticsMap.set(uri, entry);
+          resetQuiescence();
         }
       });
     },
