@@ -22,7 +22,7 @@ async function makeTempDir(): Promise<string> {
 }
 
 function makeManager() {
-  const m = createServerManager();
+  const m = createServerManager({ diagnosticTimeout: 15_000 });
   managers.push(m);
   return m;
 }
