@@ -88,6 +88,8 @@ Each built-in language server has a default diagnostic timeout calibrated to its
 | gopls | 5s | Fast indexing, quick diagnostics even on cold start |
 | rust-analyzer | 30s | Slow cold start, needs time for workspace indexing |
 | typescript-language-server | 30s | Cross-file analysis can be slow on workspace changes |
+| pylsp | 15s | Moderate cold start, plugin-dependent analysis speed |
+| clangd | 15s | Fast for single files, slower for projects without compile_commands.json |
 
 Timeouts are overridable via `.pi-lsp-lite.json` (global `diagnosticTimeout` or per-server `servers.<id>.diagnosticTimeout`).
 
@@ -112,7 +114,7 @@ Timeouts are overridable via `.pi-lsp-lite.json` (global `diagnosticTimeout` or 
 
 Config is loaded in three layers at `session_start`:
 
-1. **Built-in defaults** from `src/languages.ts` (go, rust, typescript)
+1. **Built-in defaults** from `src/languages.ts` (go, rust, typescript, python, c/c++)
 2. **Global config** from `~/.pi-lsp-lite.json`
 3. **Project config** from `.pi-lsp-lite.json` or `.pi/lsp-lite.json` in the session's cwd
 
@@ -130,8 +132,9 @@ Config is not hot-reloaded — `/reload` picks up changes via `session_start`.
 | Hook | Purpose |
 |------|---------|
 | `tool_result` | Intercept write/edit results, append diagnostics |
+| `session_start` | Load config, create server manager |
 | `session_shutdown` | Kill all servers |
-| `registerCommand` | `/lsp-status` |
+| `registerCommand` | `/lsp-status`, `/lsp-diag` |
 
 ## Adding a language
 
