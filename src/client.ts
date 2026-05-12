@@ -35,6 +35,7 @@ export interface LspClient {
   didChange(uri: string, content: string): void;
   didClose(uri: string): void;
   waitForDiagnostics(uri: string, timeoutMs: number): Promise<DiagnosticResult>;
+  getAllDiagnostics(): Map<string, Diagnostic[]>;
   shutdown(): Promise<void>;
 }
 
@@ -224,6 +225,16 @@ export function createLspClient(child: ChildProcess): LspClient {
           resetQuiescence();
         }
       });
+    },
+
+    getAllDiagnostics(): Map<string, Diagnostic[]> {
+      const result = new Map<string, Diagnostic[]>();
+      for (const [uri, entry] of diagnosticsMap) {
+        if (entry.diagnostics.length > 0) {
+          result.set(uri, [...entry.diagnostics]);
+        }
+      }
+      return result;
     },
 
     async shutdown() {

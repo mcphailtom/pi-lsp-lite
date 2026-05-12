@@ -205,4 +205,21 @@ describe("LspClient", () => {
 
     await client.shutdown();
   });
+
+  it("getAllDiagnostics returns only URIs with non-empty diagnostics", async () => {
+    const diag = { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }, message: "test error", severity: 1 };
+    const child = spawnFake({ diagnosticsByUri: { "file:///test/error.ts": [diag] } });
+    const client = createLspClient(child);
+    await client.initialize("/test");
+
+    client.didOpen("file:///test/error.ts", "typescript", "bad code");
+    await client.waitForDiagnostics("file:///test/error.ts", 2000);
+
+    const all = client.getAllDiagnostics();
+    assert.ok(all.has("file:///test/error.ts"), "should include URI with diagnostics");
+    assert.equal(all.get("file:///test/error.ts")!.length, 1);
+    assert.equal(all.size, 1, "should only contain URIs with non-empty diagnostics");
+
+    await client.shutdown();
+  });
 });

@@ -37,7 +37,7 @@ No configuration needed. Once installed, diagnostics appear automatically after 
   + 1 diagnostic in 1 other file
 ```
 
-Use `/lsp-status` to see running servers.
+Use `/lsp-status` to see running servers. Use `/lsp-diag` to see all current diagnostics across tracked files, or `/lsp-diag path/to/file` for a specific file.
 
 ## Configuration
 
