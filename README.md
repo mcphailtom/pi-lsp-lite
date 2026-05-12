@@ -1,6 +1,6 @@
 # pi-lsp-lite
 
-Just LSP diagnostics for [pi](https://github.com/mariozechner/pi) — errors and warnings on every edit, same turn. Go, Rust, TypeScript.
+Just LSP diagnostics for [pi](https://github.com/mariozechner/pi) — errors and warnings on every edit, same turn. Go, Rust, TypeScript, Python, C/C++.
 
 ## Install
 
@@ -23,6 +23,8 @@ Language servers must be on `PATH`. If missing, that language is silently disabl
 | `gopls` | Go | `go install golang.org/x/tools/gopls@latest` |
 | `rust-analyzer` | Rust | `rustup component add rust-analyzer` |
 | `typescript-language-server` | TypeScript/JavaScript | `npm install -g typescript-language-server typescript` |
+| `pylsp` | Python | `pip install python-lsp-server` |
+| `clangd` | C/C++ | Included with Xcode CLI tools / `apt install clangd` |
 
 ## Usage
 
@@ -81,7 +83,7 @@ Partial overrides work — only the fields you specify are changed.
 
 ## How it works
 
-Edits trigger `textDocument/didOpen` or `textDocument/didChange` against a long-lived language server. Diagnostics are collected within a configurable timeout (default 5s) and appended to the tool result. Workspace roots are detected automatically (`go.mod`, `Cargo.toml`, `tsconfig.json`, `package.json`).
+Edits trigger `textDocument/didOpen` or `textDocument/didChange` against a long-lived language server. Diagnostics are collected within a configurable timeout and appended to the tool result. Workspace roots are detected automatically (`go.mod`, `Cargo.toml`, `tsconfig.json`, `package.json`, `pyproject.toml`, `compile_commands.json`).
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for internals.
 

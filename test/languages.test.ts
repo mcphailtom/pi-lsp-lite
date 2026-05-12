@@ -7,11 +7,13 @@ const tsConfig: LanguageServerConfig = { id: "typescript", extensions: [".ts", "
 const pyConfig: LanguageServerConfig = { id: "python", extensions: [".py"], command: "pylsp", args: [], rootPatterns: ["pyproject.toml"] };
 
 describe("builtinLanguages", () => {
-  it("contains go, rust, and typescript entries", () => {
+  it("contains go, rust, typescript, python, and cpp entries", () => {
     const ids = builtinLanguages.map((l) => l.id);
     assert.ok(ids.includes("go"));
     assert.ok(ids.includes("rust"));
     assert.ok(ids.includes("typescript"));
+    assert.ok(ids.includes("python"));
+    assert.ok(ids.includes("cpp"));
   });
 
   it("each entry has required fields", () => {
@@ -49,6 +51,26 @@ describe("languageForFile", () => {
   it("returns undefined for an unrecognised extension", () => {
     const result = languageForFile("/project/main.rb", [goConfig, tsConfig]);
     assert.equal(result, undefined);
+  });
+
+  it("matches .py files to python config", () => {
+    const result = languageForFile("/project/main.py", builtinLanguages);
+    assert.equal(result?.id, "python");
+  });
+
+  it("matches .cpp files to cpp config", () => {
+    const result = languageForFile("/project/main.cpp", builtinLanguages);
+    assert.equal(result?.id, "cpp");
+  });
+
+  it("matches .h files to cpp config", () => {
+    const result = languageForFile("/project/util.h", builtinLanguages);
+    assert.equal(result?.id, "cpp");
+  });
+
+  it("matches .c files to cpp config", () => {
+    const result = languageForFile("/project/main.c", builtinLanguages);
+    assert.equal(result?.id, "cpp");
   });
 
   it("returns undefined for an empty configs list", () => {

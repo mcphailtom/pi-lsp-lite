@@ -1,7 +1,7 @@
 {
   "name": "pi-lsp-lite",
   "version": "0.2.5",
-  "description": "Just LSP diagnostics for pi — errors and warnings on every edit, same turn. Go, Rust, TypeScript.",
+  "description": "LSP diagnostics for pi — errors and warnings on every edit, same turn. Go, Rust, TypeScript, Python, C/C++.",
   "type": "module",
   "private": false,
   "license": "MIT",
@@ -17,7 +17,11 @@
     "lsp",
     "gopls",
     "rust-analyzer",
-    "typescript-language-server"
+    "typescript-language-server",
+    "pylsp",
+    "clangd",
+    "python",
+    "cpp"
   ],
   "pi": {
     "extensions": [

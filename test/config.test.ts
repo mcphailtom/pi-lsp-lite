@@ -77,16 +77,16 @@ describe("loadConfig", () => {
     const dir = await makeTempDir();
     await writeFile(join(dir, ".pi-lsp-lite.json"), JSON.stringify({
       servers: {
-        python: {
-          extensions: [".py"],
-          command: "pylsp",
-          args: [],
-          rootPatterns: ["pyproject.toml"],
+        haskell: {
+          extensions: [".hs"],
+          command: "haskell-language-server-wrapper",
+          args: ["--lsp"],
+          rootPatterns: ["cabal.project"],
         },
       },
     }));
     const config = await loadConfig(dir, join(dir, "nonexistent-global.json"));
-    assert.ok(!config.servers.some((s) => s.id === "python"));
+    assert.ok(!config.servers.some((s) => s.id === "haskell"));
   });
 
   it("global config can define new servers", async () => {
@@ -94,16 +94,16 @@ describe("loadConfig", () => {
     const globalPath = join(dir, "global.json");
     await writeFile(globalPath, JSON.stringify({
       servers: {
-        python: {
-          extensions: [".py"],
-          command: "pylsp",
-          args: [],
-          rootPatterns: ["pyproject.toml"],
+        haskell: {
+          extensions: [".hs"],
+          command: "haskell-language-server-wrapper",
+          args: ["--lsp"],
+          rootPatterns: ["cabal.project"],
         },
       },
     }));
     const config = await loadConfig(dir, globalPath);
-    assert.ok(config.servers.some((s) => s.id === "python"));
+    assert.ok(config.servers.some((s) => s.id === "haskell"));
   });
 
   it("global config overridden by project config", async () => {

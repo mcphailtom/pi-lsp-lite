@@ -34,6 +34,12 @@ jobs:
       - name: install typescript-language-server
         run: npm install -g typescript-language-server typescript
 
+      - name: install pylsp
+        run: pip install python-lsp-server
+
+      - name: install clangd
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq clangd
+
       - run: npm ci
 
       - name: integration tests

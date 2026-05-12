@@ -32,6 +32,22 @@ export const builtinLanguages: LanguageServerConfig[] = [
     rootPatterns: ["tsconfig.json", "package.json"],
     diagnosticTimeout: 30_000,
   },
+  {
+    id: "python",
+    extensions: [".py"],
+    command: "pylsp",
+    args: [],
+    rootPatterns: ["pyproject.toml", "setup.py", "requirements.txt"],
+    diagnosticTimeout: 15_000,
+  },
+  {
+    id: "cpp",
+    extensions: [".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hxx"],
+    command: "clangd",
+    args: [],
+    rootPatterns: ["compile_commands.json", "CMakeLists.txt", ".clangd"],
+    diagnosticTimeout: 15_000,
+  },
 ];
 
 export function languageForFile(path: string, configs: LanguageServerConfig[]): LanguageServerConfig | undefined {
