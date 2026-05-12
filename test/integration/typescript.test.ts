@@ -30,7 +30,8 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
       JSON.stringify({ compilerOptions: { strict: true, noEmit: true } }),
     );
     await writeFile(join(dir, "warmup.ts"), "const x = 1;\n");
-    await manager.handleEdit(join(dir, "warmup.ts"), tsConfig, dir);
+    const warmup = await manager.handleEdit(join(dir, "warmup.ts"), tsConfig, dir);
+    assert.notEqual(warmup.status, "unavailable", "typescript-language-server is not available — cannot run integration tests");
   });
 
   after(async () => {
@@ -68,6 +69,8 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
 
   it("detects cross-file breakage", async () => {
     const dir = await makeTempDir();
+    // dedicated manager with longer timeout for cross-file analysis on CI
+    const crossFileManager = createServerManager({ diagnosticTimeout: 30_000 });
     await writeFile(
       join(dir, "tsconfig.json"),
       JSON.stringify({ compilerOptions: { strict: true, noEmit: true } }),
@@ -81,18 +84,20 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
       "import { add } from './lib';\nconsole.log(add(1, 2));\n",
     );
 
-    await manager.handleEdit(join(dir, "main.ts"), tsConfig, dir);
-    await manager.handleEdit(join(dir, "lib.ts"), tsConfig, dir);
+    await crossFileManager.handleEdit(join(dir, "main.ts"), tsConfig, dir);
+    await crossFileManager.handleEdit(join(dir, "lib.ts"), tsConfig, dir);
 
     // break the signature
     await writeFile(
       join(dir, "lib.ts"),
       "export function add(a: number, b: number, c: number): number {\n  return a + b + c;\n}\n",
     );
-    const result = await manager.handleEdit(join(dir, "lib.ts"), tsConfig, dir);
+    const result = await crossFileManager.handleEdit(join(dir, "lib.ts"), tsConfig, dir);
     assert.equal(result.status, "ok");
 
     const totalDiags = result.diagnostics.length + result.otherFiles.reduce((s, f) => s + f.errorCount, 0);
     assert.ok(totalDiags > 0, "expected diagnostics from cross-file breakage");
+
+    await crossFileManager.shutdownAll();
   });
 });

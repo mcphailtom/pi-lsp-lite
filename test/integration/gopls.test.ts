@@ -25,7 +25,8 @@ describe("gopls integration", { skip: !process.env.INTEGRATION }, () => {
     const dir = await makeTempDir();
     await writeFile(join(dir, "go.mod"), "module example.com/test\n\ngo 1.21\n");
     await writeFile(join(dir, "warmup.go"), "package main\n");
-    await manager.handleEdit(join(dir, "warmup.go"), goConfig, dir);
+    const warmup = await manager.handleEdit(join(dir, "warmup.go"), goConfig, dir);
+    assert.notEqual(warmup.status, "unavailable", "gopls is not available — cannot run integration tests");
   });
 
   after(async () => {

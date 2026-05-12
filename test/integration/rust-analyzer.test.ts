@@ -30,7 +30,8 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
     const srcDir = join(dir, "src");
     await mkdir(srcDir, { recursive: true });
     await writeFile(join(srcDir, "main.rs"), "fn main() {}\n");
-    await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
+    const warmup = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
+    assert.notEqual(warmup.status, "unavailable", "rust-analyzer is not available — cannot run integration tests");
   });
 
   after(async () => {
