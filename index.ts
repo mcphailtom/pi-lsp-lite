@@ -1,10 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createServerManager } from "./src/server-manager.js";
-import { languageForFile, checkExtensionOverlaps, type LanguageServerConfig } from "./src/languages.js";
+import { languageForFile, checkExtensionOverlaps, builtinLanguages, type LanguageServerConfig } from "./src/languages.js";
 import { formatDiagnostics } from "./src/format.js";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol";
-import { loadConfig } from "./src/config.js";
-import { fileUri } from "./src/util.js";
+import { loadConfig, writeGlobalConfig } from "./src/config.js";
+import { fileUri, which } from "./src/util.js";
+import { installRegistry } from "./src/install-registry.js";
 import { resolve, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -119,6 +120,158 @@ export default function (pi: ExtensionAPI) {
       }
 
       ctx.ui.notify(lines.join("\n"), "warning");
+    },
+  });
+
+  pi.registerCommand("lsp-add", {
+    description: "Add a new language server to global config",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) {
+        ctx.ui.notify("pi-lsp-lite: /lsp-add requires interactive mode", "error");
+        return;
+      }
+
+      const id = await ctx.ui.input("Server ID (e.g. haskell):");
+      if (!id) return;
+
+      const command = await ctx.ui.input("Binary command (e.g. haskell-language-server-wrapper):");
+      if (!command) return;
+
+      const argsRaw = await ctx.ui.input("CLI args (comma-separated, or empty):");
+      const args = argsRaw ? argsRaw.split(",").map((a) => a.trim()).filter(Boolean) : [];
+
+      const extRaw = await ctx.ui.input("File extensions (comma-separated, e.g. .hs,.lhs):");
+      if (!extRaw) return;
+      const extensions = extRaw.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+      if (extensions.length === 0) {
+        ctx.ui.notify("pi-lsp-lite: at least one extension is required", "error");
+        return;
+      }
+
+      const rootRaw = await ctx.ui.input("Root pattern files (comma-separated, or empty):");
+      const rootPatterns = rootRaw ? rootRaw.split(",").map((r) => r.trim()).filter(Boolean) : [];
+
+      const resolved = await which(command);
+      if (!resolved) {
+        ctx.ui.notify(`pi-lsp-lite: "${command}" not found on PATH — server added but won't start until installed`, "warning");
+      }
+
+      await writeGlobalConfig({ servers: { [id]: { command, args, extensions, rootPatterns } } });
+      await initConfig(ctx.cwd);
+      ctx.ui.notify(`pi-lsp-lite: added server "${id}"`, "info");
+    },
+  });
+
+  pi.registerCommand("lsp-remove", {
+    description: "Remove or disable a language server",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) {
+        ctx.ui.notify("pi-lsp-lite: /lsp-remove requires interactive mode", "error");
+        return;
+      }
+
+      if (servers.length === 0) {
+        ctx.ui.notify("pi-lsp-lite: no servers configured", "info");
+        return;
+      }
+
+      const ids = servers.map((s) => s.id);
+      const selected = await ctx.ui.select("Remove which server?", ids);
+      if (!selected) return;
+
+      const confirmed = await ctx.ui.confirm("Confirm removal", `Disable server "${selected}"?`);
+      if (!confirmed) return;
+
+      await writeGlobalConfig({ servers: { [selected]: { disabled: true } } });
+      await initConfig(ctx.cwd);
+      ctx.ui.notify(`pi-lsp-lite: disabled server "${selected}"`, "info");
+    },
+  });
+
+  pi.registerCommand("lsp-toggle", {
+    description: "Enable or disable a language server",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) {
+        ctx.ui.notify("pi-lsp-lite: /lsp-toggle requires interactive mode", "error");
+        return;
+      }
+
+      const builtinIds = new Set(builtinLanguages.map((l) => l.id));
+      const activeIds = new Set(servers.map((s) => s.id));
+      const allIds = new Set<string>([...builtinIds, ...activeIds]);
+
+      if (allIds.size === 0) {
+        ctx.ui.notify("pi-lsp-lite: no servers configured", "info");
+        return;
+      }
+
+      const entries = [...allIds];
+      const options = entries.map((id) => `${id} ${activeIds.has(id) ? "[enabled]" : "[disabled]"}`);
+      const choice = await ctx.ui.select("Toggle which server?", options);
+      if (!choice) return;
+
+      const idx = options.indexOf(choice);
+      const id = entries[idx];
+      const isCurrentlyEnabled = activeIds.has(id);
+
+      if (isCurrentlyEnabled) {
+        await writeGlobalConfig({ servers: { [id]: { disabled: true } } });
+      } else {
+        const builtin = builtinLanguages.find((l) => l.id === id);
+        if (builtin) {
+          await writeGlobalConfig({ servers: { [id]: { disabled: false } } });
+        } else {
+          ctx.ui.notify(`pi-lsp-lite: cannot re-enable "${id}" — server definition no longer exists`, "error");
+          return;
+        }
+      }
+
+      await initConfig(ctx.cwd);
+      ctx.ui.notify(`pi-lsp-lite: ${isCurrentlyEnabled ? "disabled" : "enabled"} server "${id}"`, "info");
+    },
+  });
+
+  pi.registerCommand("lsp-install", {
+    description: "Install a missing language server binary",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) {
+        ctx.ui.notify("pi-lsp-lite: /lsp-install requires interactive mode", "error");
+        return;
+      }
+
+      const checks = await Promise.all(
+        [...installRegistry].map(async ([id, entry]) => {
+          const lang = builtinLanguages.find((l) => l.id === id);
+          const binary = lang?.command ?? id;
+          const found = await which(binary);
+          return found ? null : { id, command: binary, installCmd: entry.command, description: entry.description };
+        }),
+      );
+      const missing = checks.filter((c): c is NonNullable<typeof c> => c !== null);
+
+      if (missing.length === 0) {
+        ctx.ui.notify("pi-lsp-lite: all known servers are available", "info");
+        return;
+      }
+
+      const options = missing.map((m) => `${m.id} — ${m.description} (${m.command})`);
+      const choice = await ctx.ui.select("Install which server?", options);
+      if (!choice) return;
+
+      const idx = options.indexOf(choice);
+      const selected = missing[idx];
+
+      const confirmed = await ctx.ui.confirm("Confirm install", `Run: ${selected.installCmd}`);
+      if (!confirmed) return;
+
+      const result = await pi.exec("sh", ["-c", selected.installCmd]);
+      if (result.code !== 0) {
+        ctx.ui.notify(`pi-lsp-lite: install failed (exit ${result.code})\n${result.stderr}`, "error");
+        return;
+      }
+
+      await initConfig(ctx.cwd);
+      ctx.ui.notify(`pi-lsp-lite: installed ${selected.id}`, "info");
     },
   });
 }
