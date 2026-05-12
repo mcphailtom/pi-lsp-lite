@@ -231,7 +231,7 @@ export function createLspClient(child: ChildProcess): LspClient {
       const result = new Map<string, Diagnostic[]>();
       for (const [uri, entry] of diagnosticsMap) {
         if (entry.diagnostics.length > 0) {
-          result.set(uri, entry.diagnostics);
+          result.set(uri, [...entry.diagnostics]);
         }
       }
       return result;

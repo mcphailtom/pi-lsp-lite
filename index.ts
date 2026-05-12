@@ -2,9 +2,11 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createServerManager } from "./src/server-manager.js";
 import { languageForFile, checkExtensionOverlaps, type LanguageServerConfig } from "./src/languages.js";
 import { formatDiagnostics } from "./src/format.js";
+import { DiagnosticSeverity } from "vscode-languageserver-protocol";
 import { loadConfig } from "./src/config.js";
 import { fileUri } from "./src/util.js";
 import { resolve, relative, isAbsolute } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export default function (pi: ExtensionAPI) {
   let servers: LanguageServerConfig[] = [];
@@ -98,12 +100,12 @@ export default function (pi: ExtensionAPI) {
       const lines: string[] = [];
       for (const [uri, diags] of allDiags) {
         if (filterUri && uri !== filterUri) continue;
-        const filePath = uri.replace(/^file:\/\//, "");
-        const relevant = diags.filter((d) => d.severity === 1 || d.severity === 2);
+        const filePath = fileURLToPath(new URL(uri));
+        const relevant = diags.filter((d) => d.severity === DiagnosticSeverity.Error || d.severity === DiagnosticSeverity.Warning);
         if (relevant.length === 0) continue;
         lines.push(`${filePath} (${relevant.length} diagnostic${relevant.length !== 1 ? "s" : ""})`);
         for (const d of relevant) {
-          const severity = d.severity === 1 ? "error" : "warning";
+          const severity = d.severity === DiagnosticSeverity.Error ? "error" : "warning";
           const line = d.range.start.line + 1;
           const col = d.range.start.character + 1;
           const source = d.source ? `[${d.source}] ` : "";
