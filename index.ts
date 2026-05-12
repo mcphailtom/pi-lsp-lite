@@ -3,6 +3,7 @@ import { createServerManager } from "./src/server-manager.js";
 import { languageForFile, checkExtensionOverlaps, type LanguageServerConfig } from "./src/languages.js";
 import { formatDiagnostics } from "./src/format.js";
 import { loadConfig } from "./src/config.js";
+import { fileUri } from "./src/util.js";
 import { resolve, relative, isAbsolute } from "node:path";
 
 export default function (pi: ExtensionAPI) {
@@ -74,6 +75,48 @@ export default function (pi: ExtensionAPI) {
         return `${s.id} (pid ${s.pid}) root=${s.root} — ${s.openDocuments} open files, up ${up}s, idle ${idle}s`;
       });
       ctx.ui.notify(lines.join("\n"), "info");
+    },
+  });
+
+  pi.registerCommand("lsp-diag", {
+    description: "Show current LSP diagnostics for all tracked files (or a specific file)",
+    handler: async (args, ctx) => {
+      const allDiags = manager.getAllDiagnostics();
+
+      if (allDiags.size === 0) {
+        ctx.ui.notify("pi-lsp-lite: no diagnostics", "info");
+        return;
+      }
+
+      const filterPath = args?.trim();
+      let filterUri: string | undefined;
+      if (filterPath) {
+        const abs = resolve(ctx.cwd, filterPath);
+        filterUri = fileUri(abs);
+      }
+
+      const lines: string[] = [];
+      for (const [uri, diags] of allDiags) {
+        if (filterUri && uri !== filterUri) continue;
+        const filePath = uri.replace(/^file:\/\//, "");
+        const relevant = diags.filter((d) => d.severity === 1 || d.severity === 2);
+        if (relevant.length === 0) continue;
+        lines.push(`${filePath} (${relevant.length} diagnostic${relevant.length !== 1 ? "s" : ""})`);
+        for (const d of relevant) {
+          const severity = d.severity === 1 ? "error" : "warning";
+          const line = d.range.start.line + 1;
+          const col = d.range.start.character + 1;
+          const source = d.source ? `[${d.source}] ` : "";
+          lines.push(`  ${severity} ${line}:${col} ${source}${d.message}`);
+        }
+      }
+
+      if (lines.length === 0) {
+        ctx.ui.notify(filterPath ? `pi-lsp-lite: no diagnostics for ${filterPath}` : "pi-lsp-lite: no diagnostics", "info");
+        return;
+      }
+
+      ctx.ui.notify(lines.join("\n"), "warning");
     },
   });
 }

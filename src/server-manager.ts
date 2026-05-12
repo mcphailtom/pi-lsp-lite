@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { which, fileUri, findWorkspaceRoot } from "./util.js";
 import { createLspClient, type LspClient, type DiagnosticResult } from "./client.js";
 import type { LanguageServerConfig } from "./languages.js";
+import type { Diagnostic } from "vscode-languageserver-protocol";
 import { DEFAULT_DIAGNOSTIC_TIMEOUT, DEFAULT_DOCUMENT_IDLE_TIMEOUT } from "./config.js";
 import { readFile } from "node:fs/promises";
 
@@ -21,6 +22,7 @@ interface ManagedServer {
 export interface ServerManager {
   handleEdit(filePath: string, config: LanguageServerConfig, cwd: string): Promise<DiagnosticResult>;
   status(): ServerStatus[];
+  getAllDiagnostics(): Map<string, Diagnostic[]>;
   shutdownAll(): Promise<void>;
 }
 
@@ -240,6 +242,16 @@ export function createServerManager(options: ServerManagerOptions = {}): ServerM
         openDocuments: s.openDocuments.size,
         lastActivity: s.lastActivity,
       }));
+    },
+
+    getAllDiagnostics(): Map<string, Diagnostic[]> {
+      const result = new Map<string, Diagnostic[]>();
+      for (const server of servers.values()) {
+        for (const [uri, diags] of server.client.getAllDiagnostics()) {
+          result.set(uri, diags);
+        }
+      }
+      return result;
     },
 
     async shutdownAll() {
