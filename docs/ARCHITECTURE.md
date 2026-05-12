@@ -134,7 +134,7 @@ Config is not hot-reloaded — `/reload` picks up changes via `session_start`.
 | `tool_result` | Intercept write/edit results, append diagnostics |
 | `session_start` | Load config, create server manager |
 | `session_shutdown` | Kill all servers |
-| `registerCommand` | `/lsp-status`, `/lsp-diag` |
+| `registerCommand` | `/lsp-status` |
 
 ## Adding a language
 
