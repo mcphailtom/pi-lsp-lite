@@ -32,7 +32,7 @@ describe("pylsp integration", { skip: !process.env.INTEGRATION }, () => {
 
   it("reports syntax error", async () => {
     const filePath = join(dir, "syntax_error.py");
-    await writeFile(filePath, "def broken(\n    pass\n");
+    await writeFile(filePath, "def broken(:\n");
 
     const result = await manager.handleEdit(filePath, pyConfig, dir);
     assert.equal(result.status, "ok");

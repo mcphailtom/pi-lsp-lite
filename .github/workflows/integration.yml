@@ -35,7 +35,7 @@ jobs:
         run: npm install -g typescript-language-server typescript
 
       - name: install pylsp
-        run: pip install python-lsp-server
+        run: pip install 'python-lsp-server[all]'
 
       - name: install clangd
         run: sudo apt-get update -qq && sudo apt-get install -y -qq clangd
