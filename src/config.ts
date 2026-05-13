@@ -1,6 +1,7 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
+import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { randomUUID } from "node:crypto";
 import { type LanguageServerConfig, builtinLanguages } from "./languages.js";
 
 export interface ServerConfigOverride {
@@ -185,8 +186,66 @@ function mergeConfigs(
   return Array.from(result.values());
 }
 
+export function globalConfigFilePath(globalConfigPath?: string): string {
+  return globalConfigPath ?? join(homedir(), ".pi-lsp-lite.json");
+}
+
+export async function readGlobalConfig(globalConfigPath?: string): Promise<UserConfig | null> {
+  return readConfigFile(globalConfigFilePath(globalConfigPath));
+}
+
+let writeLock = Promise.resolve();
+
+export function writeGlobalConfig(config: UserConfig, globalConfigPath?: string): Promise<void> {
+  const op = writeLock.then(() => writeGlobalConfigInner(config, globalConfigPath));
+  writeLock = op.catch(() => {});
+  return op;
+}
+
+async function writeGlobalConfigInner(config: UserConfig, globalConfigPath?: string): Promise<void> {
+  const filePath = globalConfigFilePath(globalConfigPath);
+  const existing = await readConfigFile(filePath);
+  const merged = deepMerge(
+    (existing ?? {}) as Record<string, unknown>,
+    config as Record<string, unknown>,
+  ) as UserConfig;
+  const dir = dirname(filePath);
+  await mkdir(dir, { recursive: true });
+  const tmpPath = join(dir, `.tmp-${randomUUID()}`);
+  try {
+    await writeFile(tmpPath, JSON.stringify(merged, null, 2) + "\n", "utf-8");
+    await rename(tmpPath, filePath);
+  } catch (err) {
+    await unlink(tmpPath).catch(() => {});
+    throw err;
+  }
+}
+
+const RESERVED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = Object.create(null);
+  for (const key of Object.keys(target)) {
+    if (!RESERVED_KEYS.has(key)) result[key] = target[key];
+  }
+  for (const key of Object.keys(source)) {
+    if (RESERVED_KEYS.has(key)) continue;
+    const sv = source[key];
+    const tv = target[key];
+    if (sv === undefined) continue;
+    if (sv === null) {
+      delete result[key];
+    } else if (isPlainObject(sv) && isPlainObject(tv)) {
+      result[key] = deepMerge(tv, sv);
+    } else {
+      result[key] = sv;
+    }
+  }
+  return result;
+}
+
 export async function loadConfig(cwd: string, globalConfigPath?: string): Promise<ResolvedConfig> {
-  const globalConfig = await readConfigFile(globalConfigPath ?? join(homedir(), ".pi-lsp-lite.json"));
+  const globalConfig = await readConfigFile(globalConfigFilePath(globalConfigPath));
   const projectConfig = await findProjectConfig(cwd);
 
   let servers = [...builtinLanguages];

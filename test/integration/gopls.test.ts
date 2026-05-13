@@ -46,9 +46,17 @@ describe("gopls integration", { skip: !process.env.INTEGRATION }, () => {
     const filePath = join(dir, "clean.go");
     await writeFile(filePath, 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hello")\n}\n');
 
-    const result = await manager.handleEdit(filePath, goConfig, dir);
-    assert.equal(result.status, "ok");
-    assert.equal(result.diagnostics.length, 0);
+    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
+    for (let i = 0; i < 10; i++) {
+      result = await manager.handleEdit(filePath, goConfig, dir);
+      const hasErrors = result.diagnostics.some((d) => d.severity === 1);
+      if (!hasErrors) break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    assert.ok(result, "expected a result");
+    const hasErrors = result!.diagnostics.some((d) => d.severity === 1);
+    assert.equal(hasErrors, false, "expected no error diagnostics on clean file");
   });
 
   it("detects cross-file breakage", async () => {

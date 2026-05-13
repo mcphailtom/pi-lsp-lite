@@ -9,8 +9,9 @@ pi-lsp-lite is a [pi extension](https://github.com/mariozechner/pi) that hooks i
 ```
 index.ts               → extension entry point
 src/
-  config.ts            → config file loading and merge
+  config.ts            → config file loading, merge, and write
   languages.ts         → built-in language server defaults
+  install-registry.ts  → known install commands for built-in servers
   client.ts            → LSP protocol client (JSON-RPC over stdio)
   server-manager.ts    → server lifecycle and edit orchestration
   format.ts            → diagnostic formatting for agent consumption
@@ -86,7 +87,7 @@ Each built-in language server has a default diagnostic timeout calibrated to its
 | Server | Timeout | Rationale |
 |--------|---------|----------|
 | gopls | 5s | Fast indexing, quick diagnostics even on cold start |
-| rust-analyzer | 30s | Slow cold start, needs time for workspace indexing |
+| rust-analyzer | 30s | Slow cold start, needs workspace indexing time |
 | typescript-language-server | 30s | Cross-file analysis can be slow on workspace changes |
 | pylsp | 15s | Moderate cold start, plugin-dependent analysis speed |
 | clangd | 15s | Fast for single files, slower for projects without compile_commands.json |
@@ -134,7 +135,7 @@ Config is not hot-reloaded — `/reload` picks up changes via `session_start`.
 | `tool_result` | Intercept write/edit results, append diagnostics |
 | `session_start` | Load config, create server manager |
 | `session_shutdown` | Kill all servers |
-| `registerCommand` | `/lsp-status` |
+| `registerCommand` | `/lsp-status`, `/lsp-diag`, `/lsp-add`, `/lsp-remove`, `/lsp-toggle`, `/lsp-install` |
 
 ## Adding a language
 

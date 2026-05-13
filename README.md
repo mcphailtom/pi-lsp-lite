@@ -39,6 +39,13 @@ No configuration needed. Once installed, diagnostics appear automatically after 
 
 Use `/lsp-status` to see running servers. Use `/lsp-diag` to see all current diagnostics across tracked files, or `/lsp-diag path/to/file` for a specific file.
 
+Manage servers interactively:
+
+- `/lsp-add` — add a new language server to your global config
+- `/lsp-remove` — disable a configured server
+- `/lsp-toggle` — enable or disable a server without removing its config
+- `/lsp-install` — install a missing server binary (from a built-in registry of install commands)
+
 ## Configuration
 
 Works out of the box with built-in defaults. To add servers, override settings, or disable languages, create a config file:

@@ -1,9 +1,9 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadConfig } from "../src/config.js";
+import { loadConfig, writeGlobalConfig } from "../src/config.js";
 
 let tempDirs: string[] = [];
 
@@ -257,5 +257,74 @@ describe("loadConfig", () => {
     }));
     const config = await loadConfig(dir, globalPath);
     assert.ok(!config.servers.some((s) => s.id === "bad"));
+  });
+});
+
+describe("writeGlobalConfig", () => {
+  it("creates a new config file when none exists", async () => {
+    const dir = await makeTempDir();
+    const globalPath = join(dir, "global.json");
+    await writeGlobalConfig({ servers: { haskell: { command: "hls", extensions: [".hs"] } } }, globalPath);
+    const config = await loadConfig(dir, globalPath);
+    const haskell = config.servers.find((s) => s.id === "haskell");
+    assert.ok(haskell);
+    assert.equal(haskell.command, "hls");
+    assert.deepEqual(haskell.extensions, [".hs"]);
+  });
+
+  it("merges with existing config preserving unrelated entries", async () => {
+    const dir = await makeTempDir();
+    const globalPath = join(dir, "global.json");
+    await writeFile(globalPath, JSON.stringify({
+      diagnosticTimeout: 8000,
+      servers: {
+        haskell: { command: "hls", extensions: [".hs"] },
+      },
+    }));
+    await writeGlobalConfig({ servers: { ocaml: { command: "ocamllsp", extensions: [".ml"] } } }, globalPath);
+    const config = await loadConfig(dir, globalPath);
+    assert.ok(config.servers.find((s) => s.id === "haskell"));
+    assert.ok(config.servers.find((s) => s.id === "ocaml"));
+    assert.equal(config.diagnosticTimeout, 8000);
+  });
+
+  it("overwrites existing server entry", async () => {
+    const dir = await makeTempDir();
+    const globalPath = join(dir, "global.json");
+    await writeFile(globalPath, JSON.stringify({
+      servers: {
+        haskell: { command: "hls", extensions: [".hs"], args: ["--lsp"] },
+      },
+    }));
+    await writeGlobalConfig({ servers: { haskell: { args: ["--lsp", "--debug"] } } }, globalPath);
+    const raw = JSON.parse(await readFile(globalPath, "utf-8"));
+    assert.deepEqual(raw.servers.haskell.args, ["--lsp", "--debug"]);
+    assert.equal(raw.servers.haskell.command, "hls");
+  });
+
+  it("writes formatted JSON with trailing newline", async () => {
+    const dir = await makeTempDir();
+    const globalPath = join(dir, "global.json");
+    await writeGlobalConfig({ diagnosticTimeout: 5000 }, globalPath);
+    const content = await readFile(globalPath, "utf-8");
+    assert.ok(content.includes("\n"));
+    assert.ok(content.endsWith("\n"));
+    JSON.parse(content);
+  });
+
+  it("handles disabling a server via merge", async () => {
+    const dir = await makeTempDir();
+    const globalPath = join(dir, "global.json");
+    await writeGlobalConfig({ servers: { go: { disabled: true } } }, globalPath);
+    const config = await loadConfig(dir, globalPath);
+    assert.ok(!config.servers.find((s) => s.id === "go"));
+  });
+
+  it("creates parent directories if needed", async () => {
+    const dir = await makeTempDir();
+    const globalPath = join(dir, "nested", "dir", "global.json");
+    await writeGlobalConfig({ diagnosticTimeout: 3000 }, globalPath);
+    const config = await loadConfig(dir, globalPath);
+    assert.equal(config.diagnosticTimeout, 3000);
   });
 });
