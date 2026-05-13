@@ -14,7 +14,7 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
   let srcDir: string;
 
   before(async () => {
-    manager = createServerManager();
+    manager = createServerManager({ diagnosticTimeout: 120_000 });
     dir = join(tmpdir(), `pi-lsp-rust-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     srcDir = join(dir, "src");
     await mkdir(srcDir, { recursive: true });
@@ -23,10 +23,15 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
       '[package]\nname = "test"\nversion = "0.1.0"\nedition = "2021"\n',
     );
 
-    // warmup: absorb cold start
+    // warmup: absorb cold start — retry until server is truly ready
     await writeFile(join(srcDir, "main.rs"), "fn main() {}\n");
     const warmup = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
     assert.notEqual(warmup.status, "unavailable", "rust-analyzer is not available — cannot run integration tests");
+    if (warmup.status === "timeout") {
+      // server is still indexing — retry once more
+      const retry = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
+      assert.equal(retry.status, "ok", "rust-analyzer did not respond after extended warmup");
+    }
   });
 
   after(async () => {
