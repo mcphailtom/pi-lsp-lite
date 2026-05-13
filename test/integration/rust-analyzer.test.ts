@@ -14,7 +14,7 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
   let srcDir: string;
 
   before(async () => {
-    manager = createServerManager({ perServerTimeout: new Map([["rust", 120_000]]) });
+    manager = createServerManager();
     dir = join(tmpdir(), `pi-lsp-rust-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     srcDir = join(dir, "src");
     await mkdir(srcDir, { recursive: true });
@@ -23,15 +23,10 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
       '[package]\nname = "test"\nversion = "0.1.0"\nedition = "2021"\n',
     );
 
-    // warmup: absorb cold start — retry until server is truly ready
+    // warmup: absorb cold start
     await writeFile(join(srcDir, "main.rs"), "fn main() {}\n");
     const warmup = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
     assert.notEqual(warmup.status, "unavailable", "rust-analyzer is not available — cannot run integration tests");
-    if (warmup.status === "timeout") {
-      // server is still indexing — retry once more
-      const retry = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
-      assert.equal(retry.status, "ok", "rust-analyzer did not respond after extended warmup");
-    }
   });
 
   after(async () => {
@@ -39,20 +34,22 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   });
 
-  it("reports no errors for clean file", async () => {
-    await writeFile(join(srcDir, "main.rs"), 'fn main() {\n    println!("hello");\n}\n');
-
-    const result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
-    assert.equal(result.status, "ok");
-    assert.equal(result.diagnostics.length, 0);
-  });
-
   it("reports syntax error", async () => {
+    // write invalid code into main.rs (the module root, so no unlinked-file warning)
     await writeFile(join(srcDir, "main.rs"), "fn main() {\n  let x = \n}\n");
 
     const result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
     assert.equal(result.status, "ok");
     assert.ok(result.diagnostics.length > 0, "expected at least one diagnostic for syntax error");
+  });
+
+  it("reports no errors for clean file", async () => {
+    // restore valid main.rs
+    await writeFile(join(srcDir, "main.rs"), 'fn main() {\n    println!("hello");\n}\n');
+
+    const result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
+    assert.equal(result.status, "ok");
+    assert.equal(result.diagnostics.length, 0);
   });
 
   it("detects cross-file breakage", async () => {
