@@ -190,6 +190,10 @@ export function globalConfigFilePath(globalConfigPath?: string): string {
   return globalConfigPath ?? join(homedir(), ".pi-lsp-lite.json");
 }
 
+export async function readGlobalConfig(globalConfigPath?: string): Promise<UserConfig | null> {
+  return readConfigFile(globalConfigFilePath(globalConfigPath));
+}
+
 let writeLock = Promise.resolve();
 
 export function writeGlobalConfig(config: UserConfig, globalConfigPath?: string): Promise<void> {
@@ -212,9 +216,12 @@ async function writeGlobalConfigInner(config: UserConfig, globalConfigPath?: str
   await rename(tmpPath, filePath);
 }
 
+const RESERVED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
   const result = { ...target };
   for (const key of Object.keys(source)) {
+    if (RESERVED_KEYS.has(key)) continue;
     const sv = source[key];
     const tv = target[key];
     if (sv === undefined) continue;

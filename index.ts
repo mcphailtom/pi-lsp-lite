@@ -3,7 +3,7 @@ import { createServerManager } from "./src/server-manager.js";
 import { languageForFile, checkExtensionOverlaps, builtinLanguages, type LanguageServerConfig } from "./src/languages.js";
 import { formatDiagnostics } from "./src/format.js";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol";
-import { loadConfig, writeGlobalConfig } from "./src/config.js";
+import { loadConfig, writeGlobalConfig, readGlobalConfig } from "./src/config.js";
 import { fileUri, which } from "./src/util.js";
 import { installRegistry } from "./src/install-registry.js";
 import { resolve, relative, isAbsolute } from "node:path";
@@ -131,8 +131,13 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const id = await ctx.ui.input("Server ID (e.g. haskell):");
-      if (!id) return;
+      const rawId = await ctx.ui.input("Server ID (e.g. haskell):");
+      if (!rawId) return;
+      const id = rawId.trim().toLowerCase();
+      if (!/^[a-z0-9_-]+$/.test(id)) {
+        ctx.ui.notify("pi-lsp-lite: server ID must be lowercase alphanumeric, hyphens, or underscores", "error");
+        return;
+      }
 
       const command = await ctx.ui.input("Binary command (e.g. haskell-language-server-wrapper):");
       if (!command) return;
@@ -198,7 +203,11 @@ export default function (pi: ExtensionAPI) {
 
       const builtinIds = new Set(builtinLanguages.map((l) => l.id));
       const activeIds = new Set(servers.map((s) => s.id));
-      const allIds = new Set<string>([...builtinIds, ...activeIds]);
+
+      // include disabled user-added servers from global config so they can be re-enabled
+      const globalConfig = await readGlobalConfig();
+      const globalServerIds = globalConfig?.servers ? Object.keys(globalConfig.servers) : [];
+      const allIds = new Set<string>([...builtinIds, ...activeIds, ...globalServerIds]);
 
       if (allIds.size === 0) {
         ctx.ui.notify("pi-lsp-lite: no servers configured", "info");
@@ -217,13 +226,8 @@ export default function (pi: ExtensionAPI) {
       if (isCurrentlyEnabled) {
         await writeGlobalConfig({ servers: { [id]: { disabled: true } } });
       } else {
-        const builtin = builtinLanguages.find((l) => l.id === id);
-        if (builtin) {
-          await writeGlobalConfig({ servers: { [id]: { disabled: false } } });
-        } else {
-          ctx.ui.notify(`pi-lsp-lite: cannot re-enable "${id}" — server definition no longer exists`, "error");
-          return;
-        }
+        // re-enable: works for both built-ins and user-added servers in global config
+        await writeGlobalConfig({ servers: { [id]: { disabled: false } } });
       }
 
       await initConfig(ctx.cwd);

@@ -34,22 +34,20 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   });
 
-  it("reports syntax error", async () => {
-    // write invalid code into main.rs (the module root, so no unlinked-file warning)
-    await writeFile(join(srcDir, "main.rs"), "fn main() {\n  let x = \n}\n");
-
-    const result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
-    assert.equal(result.status, "ok");
-    assert.ok(result.diagnostics.length > 0, "expected at least one diagnostic for syntax error");
-  });
-
   it("reports no errors for clean file", async () => {
-    // restore valid main.rs
     await writeFile(join(srcDir, "main.rs"), 'fn main() {\n    println!("hello");\n}\n');
 
     const result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
     assert.equal(result.status, "ok");
     assert.equal(result.diagnostics.length, 0);
+  });
+
+  it("reports syntax error", async () => {
+    await writeFile(join(srcDir, "main.rs"), "fn main() {\n  let x = \n}\n");
+
+    const result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
+    assert.equal(result.status, "ok");
+    assert.ok(result.diagnostics.length > 0, "expected at least one diagnostic for syntax error");
   });
 
   it("detects cross-file breakage", async () => {
