@@ -3,7 +3,7 @@ import { which, fileUri, findWorkspaceRoot } from "./util.js";
 import { createLspClient, type LspClient, type DiagnosticResult } from "./client.js";
 import type { LanguageServerConfig } from "./languages.js";
 import type { Diagnostic } from "vscode-languageserver-protocol";
-import { DEFAULT_DIAGNOSTIC_TIMEOUT, DEFAULT_DOCUMENT_IDLE_TIMEOUT } from "./config.js";
+import { DEFAULT_DIAGNOSTIC_TIMEOUT, DEFAULT_DOCUMENT_IDLE_TIMEOUT, DEFAULT_MAX_RETRIES } from "./config.js";
 import { readFile } from "node:fs/promises";
 
 interface ManagedServer {
@@ -43,12 +43,17 @@ export interface ServerManagerOptions {
   diagnosticTimeout?: number;
   documentIdleTimeout?: number;
   perServerTimeout?: Map<string, number>;
+  maxRetries?: number;
 }
+
+const RETRY_BASE_DELAY_MS = 500;
+const MAX_RETRY_DELAY_MS = 30_000;
 
 export function createServerManager(options: ServerManagerOptions = {}): ServerManager {
   const diagnosticTimeout = options.diagnosticTimeout ?? DEFAULT_DIAGNOSTIC_TIMEOUT;
   const documentIdleTimeout = options.documentIdleTimeout ?? DEFAULT_DOCUMENT_IDLE_TIMEOUT;
   const perServerTimeout = options.perServerTimeout ?? new Map();
+  const defaultMaxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
   const servers = new Map<string, ManagedServer>();
   const pending = new Map<string, Promise<ManagedServer | null>>();
   const disabledBinaries = new Set<string>();
@@ -166,7 +171,7 @@ export function createServerManager(options: ServerManagerOptions = {}): ServerM
       idleTimer: null,
       startTime: now,
       lastActivity: now,
-      editQueue: Promise.resolve({ status: "ok", diagnostics: [], otherFiles: [] }),
+      editQueue: Promise.resolve({ status: "ok", diagnostics: [], otherFiles: [], retryAttempts: 0 }),
     };
 
     child.on("exit", () => {
@@ -199,11 +204,17 @@ export function createServerManager(options: ServerManagerOptions = {}): ServerM
     return promise;
   }
 
+  function getMaxRetries(config: LanguageServerConfig): number {
+    return config.maxRetries ?? defaultMaxRetries;
+  }
+
   async function doEdit(server: ManagedServer, filePath: string): Promise<DiagnosticResult> {
     resetIdleTimer(server);
 
     const uri = fileUri(filePath);
     const content = await readFile(filePath, "utf-8");
+    const timeout = perServerTimeout.get(server.config.id) ?? server.config.diagnosticTimeout ?? diagnosticTimeout;
+    const retries = getMaxRetries(server.config);
 
     if (server.openDocuments.has(uri)) {
       server.client.didChange(uri, content);
@@ -212,17 +223,32 @@ export function createServerManager(options: ServerManagerOptions = {}): ServerM
     }
     server.openDocuments.set(uri, Date.now());
 
-    return server.client.waitForDiagnostics(
-      uri,
-      perServerTimeout.get(server.config.id) ?? server.config.diagnosticTimeout ?? diagnosticTimeout,
-    );
+    let lastResult = await server.client.waitForDiagnostics(uri, timeout);
+
+    for (let attempt = 0; attempt < retries && lastResult.status === "timeout"; attempt++) {
+      resetIdleTimer(server);
+      const baseDelay = Math.min(RETRY_BASE_DELAY_MS * 2 ** attempt, MAX_RETRY_DELAY_MS);
+      const jitter = baseDelay * Math.random() * 0.5;
+      await new Promise((resolve) => setTimeout(resolve, baseDelay + jitter));
+
+      server.client.didChange(uri, content);
+      const result = await server.client.waitForDiagnostics(uri, timeout);
+      result.retryAttempts = attempt + 1;
+
+      if (result.status === "ok") {
+        return result;
+      }
+      lastResult = result;
+    }
+
+    return lastResult;
   }
 
   return {
     async handleEdit(filePath: string, config: LanguageServerConfig, cwd: string): Promise<DiagnosticResult> {
       const root = await findWorkspaceRoot(filePath, config.rootPatterns, cwd);
       const server = await ensureServer(config, root);
-      if (!server) return { status: "unavailable" as const, diagnostics: [], otherFiles: [] };
+      if (!server) return { status: "unavailable" as const, diagnostics: [], otherFiles: [], retryAttempts: 0 };
 
       // serialize edits per server to avoid concurrent waitForDiagnostics races
       const result = server.editQueue.then(

@@ -22,6 +22,7 @@ describe("formatDiagnostics", () => {
         makeDiag(DiagnosticSeverity.Warning, "unused import", 1, 0),
       ],
       otherFiles: [],
+      retryAttempts: 0,
     };
 
     const output = formatDiagnostics("main.go", result);
@@ -38,6 +39,7 @@ describe("formatDiagnostics", () => {
       status: "ok",
       diagnostics: [],
       otherFiles: [],
+      retryAttempts: 0,
     };
 
     const output = formatDiagnostics("main.go", result);
@@ -49,6 +51,7 @@ describe("formatDiagnostics", () => {
       status: "timeout",
       diagnostics: [],
       otherFiles: [],
+      retryAttempts: 0,
     };
 
     const output = formatDiagnostics("main.go", result);
@@ -61,6 +64,7 @@ describe("formatDiagnostics", () => {
       status: "timeout",
       diagnostics: [makeDiag(DiagnosticSeverity.Error, "some error")],
       otherFiles: [],
+      retryAttempts: 0,
     };
 
     const output = formatDiagnostics("main.go", result);
@@ -77,6 +81,7 @@ describe("formatDiagnostics", () => {
         { uri: "file:///project/other.go", errorCount: 2, warningCount: 1 },
         { uri: "file:///project/another.go", errorCount: 0, warningCount: 3 },
       ],
+      retryAttempts: 0,
     };
 
     const output = formatDiagnostics("main.go", result);
@@ -88,6 +93,7 @@ describe("formatDiagnostics", () => {
       status: "ok",
       diagnostics: [],
       otherFiles: [{ uri: "file:///project/other.go", errorCount: 1, warningCount: 0 }],
+      retryAttempts: 0,
     };
 
     const output = formatDiagnostics("main.go", result);
@@ -102,9 +108,36 @@ describe("formatDiagnostics", () => {
         makeDiag(DiagnosticSeverity.Hint, "hint message"),
       ],
       otherFiles: [],
+      retryAttempts: 0,
     };
 
     const output = formatDiagnostics("main.go", result);
     assert.equal(output, "");
+  });
+
+  it("includes retry count in timeout message when retryAttempts > 0", () => {
+    const result: DiagnosticResult = {
+      status: "timeout",
+      diagnostics: [makeDiag(DiagnosticSeverity.Error, "some error")],
+      otherFiles: [],
+      retryAttempts: 3,
+    };
+
+    const output = formatDiagnostics("main.go", result);
+    assert.ok(output.includes("after 3 retries"), `expected 'after 3 retries' in: ${output}`);
+    assert.ok(output.includes("timed out"));
+    assert.ok(output.includes("may be incomplete"));
+  });
+
+  it("uses singular 'retry' when retryAttempts is 1", () => {
+    const result: DiagnosticResult = {
+      status: "timeout",
+      diagnostics: [],
+      otherFiles: [],
+      retryAttempts: 1,
+    };
+
+    const output = formatDiagnostics("main.go", result);
+    assert.ok(output.includes("after 1 retry"), `expected 'after 1 retry' in: ${output}`);
   });
 });

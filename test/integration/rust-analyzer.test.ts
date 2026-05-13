@@ -35,12 +35,18 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
   });
 
   it("reports syntax error", async () => {
-    // write invalid code into main.rs (the module root, so no unlinked-file warning)
     await writeFile(join(srcDir, "main.rs"), "fn main() {\n  let x = \n}\n");
 
-    const result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
-    assert.equal(result.status, "ok");
-    assert.ok(result.diagnostics.length > 0, "expected at least one diagnostic for syntax error");
+    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
+    for (let i = 0; i < 15; i++) {
+      result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
+      if (result.diagnostics.some((d) => d.severity === 1)) break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    assert.ok(result, "expected a result");
+    assert.equal(result!.status, "ok");
+    assert.ok(result!.diagnostics.some((d) => d.severity === 1), "expected at least one error diagnostic for syntax error");
   });
 
   it("reports no errors for clean file", async () => {
@@ -49,7 +55,7 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
     // rust-analyzer may still be publishing stale diagnostics from the previous
     // syntax error test — poll until diagnostics clear
     let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 15; i++) {
       result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
       const hasErrors = result.diagnostics.some((d) => d.severity === 1);
       if (!hasErrors) break;
@@ -62,7 +68,6 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
   });
 
   it("detects cross-file breakage", async () => {
-    // create lib.rs as a module declared from main.rs
     await writeFile(
       join(srcDir, "lib.rs"),
       "pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n",
@@ -80,10 +85,20 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
       join(srcDir, "lib.rs"),
       "pub fn add(a: i32, b: i32, c: i32) -> i32 {\n    a + b + c\n}\n",
     );
-    const result = await manager.handleEdit(join(srcDir, "lib.rs"), rustConfig, dir);
-    assert.equal(result.status, "ok");
 
-    const totalDiags = result.diagnostics.length + result.otherFiles.reduce((s, f) => s + f.errorCount, 0);
+    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
+    for (let i = 0; i < 15; i++) {
+      result = await manager.handleEdit(join(srcDir, "lib.rs"), rustConfig, dir);
+      const totalDiags = result.diagnostics.filter((d) => d.severity === 1).length
+        + result.otherFiles.reduce((s, f) => s + f.errorCount, 0);
+      if (totalDiags > 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    assert.ok(result, "expected a result");
+    assert.equal(result!.status, "ok");
+    const totalDiags = result!.diagnostics.filter((d) => d.severity === 1).length
+      + result!.otherFiles.reduce((s, f) => s + f.errorCount, 0);
     assert.ok(totalDiags > 0, "expected diagnostics from cross-file breakage");
   });
 });

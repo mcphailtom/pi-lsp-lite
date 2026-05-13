@@ -27,6 +27,7 @@ export interface DiagnosticResult {
   status: "ok" | "timeout" | "unavailable";
   diagnostics: Diagnostic[];
   otherFiles: OtherFileDiagnostics[];
+  retryAttempts: number;
 }
 
 export interface LspClient {
@@ -186,6 +187,7 @@ export function createLspClient(child: ChildProcess): LspClient {
             status,
             diagnostics: diagnosticsMap.get(uri)?.diagnostics ?? [],
             otherFiles: collectOtherFiles(),
+            retryAttempts: 0,
           });
         };
 

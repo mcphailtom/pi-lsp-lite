@@ -81,7 +81,8 @@ Works out of the box with built-in defaults. To add servers, override settings, 
 | `servers.<id>.command` | Binary name or path | (required for new servers) |
 | `servers.<id>.args` | CLI arguments | `[]` |
 | `servers.<id>.rootPatterns` | Files that mark workspace root | `[]` |
-| `servers.<id>.diagnosticTimeout` | Per-server timeout (ms) | global default |
+| `servers.<id>.diagnosticTimeout` | Per-server timeout per attempt (ms) | global default |
+| `servers.<id>.maxRetries` | Retry attempts on timeout (0-10) | `3` |
 | `servers.<id>.disabled` | Disable this server | `false` |
 | `diagnosticTimeout` | Default diagnostic wait (ms) | `5000` |
 | `documentIdleTimeout` | Close idle documents after (ms) | `120000` |
@@ -90,7 +91,7 @@ Partial overrides work — only the fields you specify are changed.
 
 ## How it works
 
-Edits trigger `textDocument/didOpen` or `textDocument/didChange` against a long-lived language server. Diagnostics are collected within a configurable timeout and appended to the tool result. Workspace roots are detected automatically (`go.mod`, `Cargo.toml`, `tsconfig.json`, `package.json`, `pyproject.toml`, `compile_commands.json`).
+Edits trigger `textDocument/didOpen` or `textDocument/didChange` against a long-lived language server. Diagnostics are collected within a configurable per-attempt timeout. If the server doesn't respond in time, the edit is retried with exponential backoff (up to `maxRetries` times, default 3) before giving up. Results are appended to the tool result. Workspace roots are detected automatically (`go.mod`, `Cargo.toml`, `tsconfig.json`, `package.json`, `pyproject.toml`, `compile_commands.json`).
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for internals.
 

@@ -224,7 +224,7 @@ describe("ServerManagerOptions", () => {
       args: [fakeServerPath, "--run", '--options={"diagnosticDelay":2000}'],
       rootPatterns: ["go.mod"],
     };
-    const manager = createServerManager({ diagnosticTimeout: 200 });
+    const manager = createServerManager({ diagnosticTimeout: 200, maxRetries: 0 });
     const dir = await makeTempDir();
     await writeFile(join(dir, "go.mod"), "module test");
     const filePath = join(dir, "main.go");
@@ -248,6 +248,7 @@ describe("ServerManagerOptions", () => {
     const manager = createServerManager({
       diagnosticTimeout: 10_000,
       perServerTimeout: new Map([["fake-slow2", 200]]),
+      maxRetries: 0,
     });
     const dir = await makeTempDir();
     await writeFile(join(dir, "go.mod"), "module test");
@@ -273,6 +274,115 @@ describe("ServerManagerOptions", () => {
 
     const result = await manager.handleEdit(filePath, fakeConfig, dir);
     assert.equal(result.status, "ok");
+
+    await manager.shutdownAll();
+  });
+});
+
+describe("Retry logic", () => {
+  it("no retry when server publishes diagnostics on first attempt", async () => {
+    const manager = createServerManager({ diagnosticTimeout: 2_000 });
+    const dir = await makeTempDir();
+    await writeFile(join(dir, "go.mod"), "module test");
+    const filePath = join(dir, "main.go");
+    await writeFile(filePath, "package main");
+
+    const result = await manager.handleEdit(filePath, fakeConfig, dir);
+    assert.equal(result.status, "ok");
+    assert.equal(result.retryAttempts, 0);
+    assert.ok(result.diagnostics.length > 0);
+
+    await manager.shutdownAll();
+  });
+
+  it("retries and succeeds when server publishes on 3rd attempt", async () => {
+    const publish3rdConfig: LanguageServerConfig = {
+      id: "fake-publish3rd",
+      extensions: [".go"],
+      command: tsxPath,
+      args: [fakeServerPath, "--run", '--options={"publishOnAttempt":3}'],
+      rootPatterns: ["go.mod"],
+    };
+    const manager = createServerManager({ diagnosticTimeout: 500 });
+    const dir = await makeTempDir();
+    await writeFile(join(dir, "go.mod"), "module test");
+    const filePath = join(dir, "main.go");
+    await writeFile(filePath, "package main");
+
+    const result = await manager.handleEdit(filePath, publish3rdConfig, dir);
+    assert.equal(result.status, "ok");
+    assert.equal(result.retryAttempts, 2);
+    assert.ok(result.diagnostics.length > 0);
+
+    await manager.shutdownAll();
+  });
+
+  it("exhausts maxRetries and returns timeout when server never publishes", async () => {
+    const neverPublishConfig: LanguageServerConfig = {
+      id: "fake-nopub",
+      extensions: [".go"],
+      command: tsxPath,
+      args: [fakeServerPath, "--run", '--options={"neverPublish":true}'],
+      rootPatterns: ["go.mod"],
+    };
+    const manager = createServerManager({ diagnosticTimeout: 200, maxRetries: 3 });
+    const dir = await makeTempDir();
+    await writeFile(join(dir, "go.mod"), "module test");
+    const filePath = join(dir, "main.go");
+    await writeFile(filePath, "package main");
+
+    const result = await manager.handleEdit(filePath, neverPublishConfig, dir);
+    assert.equal(result.status, "timeout");
+    assert.equal(result.retryAttempts, 3);
+
+    await manager.shutdownAll();
+  });
+
+  it("per-server maxRetries on LanguageServerConfig overrides manager default", async () => {
+    const publish2ndConfig: LanguageServerConfig = {
+      id: "fake-publish2nd",
+      extensions: [".go"],
+      command: tsxPath,
+      args: [fakeServerPath, "--run", '--options={"publishOnAttempt":2}'],
+      rootPatterns: ["go.mod"],
+      maxRetries: 1,
+    };
+    // manager default is 0 — without the per-server override it would not retry
+    const manager = createServerManager({ diagnosticTimeout: 300, maxRetries: 0 });
+    const dir = await makeTempDir();
+    await writeFile(join(dir, "go.mod"), "module test");
+    const filePath = join(dir, "main.go");
+    await writeFile(filePath, "package main");
+
+    const result = await manager.handleEdit(filePath, publish2ndConfig, dir);
+    assert.equal(result.status, "ok");
+    assert.equal(result.retryAttempts, 1);
+    assert.ok(result.diagnostics.length > 0);
+
+    await manager.shutdownAll();
+  });
+
+  it("maxRetries: 0 means single attempt only", async () => {
+    const neverPublishConfig: LanguageServerConfig = {
+      id: "fake-nopub2",
+      extensions: [".go"],
+      command: tsxPath,
+      args: [fakeServerPath, "--run", '--options={"neverPublish":true}'],
+      rootPatterns: ["go.mod"],
+    };
+    const manager = createServerManager({ diagnosticTimeout: 200, maxRetries: 0 });
+    const dir = await makeTempDir();
+    await writeFile(join(dir, "go.mod"), "module test");
+    const filePath = join(dir, "main.go");
+    await writeFile(filePath, "package main");
+
+    const start = Date.now();
+    const result = await manager.handleEdit(filePath, neverPublishConfig, dir);
+    const elapsed = Date.now() - start;
+
+    assert.equal(result.status, "timeout");
+    assert.equal(result.retryAttempts, 0);
+    assert.ok(elapsed < 2_000, `should not have retried, took ${elapsed}ms`);
 
     await manager.shutdownAll();
   });

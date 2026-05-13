@@ -5,6 +5,7 @@ export interface LanguageServerConfig {
   args: string[];
   rootPatterns: string[];
   diagnosticTimeout?: number;
+  maxRetries?: number;
 }
 
 export const builtinLanguages: LanguageServerConfig[] = [

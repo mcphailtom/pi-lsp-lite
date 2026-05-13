@@ -23,6 +23,7 @@ export interface FakeServerOptions {
   crashOnInit?: boolean;
   neverPublish?: boolean;
   neverShutdown?: boolean;
+  publishOnAttempt?: number;
 }
 
 const defaultDiagnostic: Diagnostic = {
@@ -37,6 +38,8 @@ export function startFakeServer(options: FakeServerOptions = {}) {
   const crashOnInit = options.crashOnInit ?? false;
   const neverPublish = options.neverPublish ?? false;
   const neverShutdown = options.neverShutdown ?? false;
+  const publishOnAttempt = options.publishOnAttempt ?? 1;
+  const attemptCounts = new Map<string, number>();
 
   const connection = createProtocolConnection(
     new StreamMessageReader(process.stdin),
@@ -60,6 +63,11 @@ export function startFakeServer(options: FakeServerOptions = {}) {
 
   function publishDiagnostics(uri: string) {
     if (neverPublish) return;
+
+    const count = (attemptCounts.get(uri) ?? 0) + 1;
+    attemptCounts.set(uri, count);
+
+    if (count < publishOnAttempt) return;
 
     const diags = options.diagnosticsByUri?.get(uri) ?? [defaultDiagnostic];
 
@@ -117,6 +125,7 @@ if (process.argv.includes("--run")) {
     if (raw.crashOnInit) options.crashOnInit = raw.crashOnInit;
     if (raw.neverPublish) options.neverPublish = raw.neverPublish;
     if (raw.neverShutdown) options.neverShutdown = raw.neverShutdown;
+    if (raw.publishOnAttempt) options.publishOnAttempt = raw.publishOnAttempt;
     if (raw.diagnosticsByUri) {
       options.diagnosticsByUri = new Map(Object.entries(raw.diagnosticsByUri));
     }

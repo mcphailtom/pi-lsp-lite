@@ -37,9 +37,16 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
     const filePath = join(dir, "type_error.ts");
     await writeFile(filePath, "const x: number = 'hello';\n");
 
-    const result = await manager.handleEdit(filePath, tsConfig, dir);
-    assert.equal(result.status, "ok");
-    assert.ok(result.diagnostics.length > 0, "expected at least one diagnostic for type error");
+    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
+    for (let i = 0; i < 15; i++) {
+      result = await manager.handleEdit(filePath, tsConfig, dir);
+      if (result.diagnostics.some((d) => d.severity === 1)) break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    assert.ok(result, "expected a result");
+    assert.equal(result!.status, "ok");
+    assert.ok(result!.diagnostics.some((d) => d.severity === 1), "expected at least one error diagnostic for type error");
 
     // fix the error so it doesn't pollute subsequent tests
     await writeFile(filePath, "const x: number = 42;\n");
@@ -51,7 +58,7 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
     await writeFile(filePath, "export const _clean: number = 42;\nconsole.log(_clean);\n");
 
     let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 15; i++) {
       result = await manager.handleEdit(filePath, tsConfig, dir);
       const hasErrors = result.diagnostics.some((d) => d.severity === 1);
       if (!hasErrors) break;
@@ -82,12 +89,20 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
       join(dir, "lib.ts"),
       "export function add(a: number, b: number, c: number): number {\n  return a + b + c;\n}\n",
     );
-    const result = await manager.handleEdit(join(dir, "lib.ts"), tsConfig, dir);
-    assert.equal(result.status, "ok");
 
-    // typescript-language-server may not re-publish for lib.ts (it's valid)
-    // but should publish cross-file diagnostics for caller.ts
-    const totalDiags = result.diagnostics.length + result.otherFiles.reduce((s, f) => s + f.errorCount, 0);
+    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
+    for (let i = 0; i < 15; i++) {
+      result = await manager.handleEdit(join(dir, "lib.ts"), tsConfig, dir);
+      const totalDiags = result.diagnostics.filter((d) => d.severity === 1).length
+        + result.otherFiles.reduce((s, f) => s + f.errorCount, 0);
+      if (totalDiags > 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    assert.ok(result, "expected a result");
+    assert.equal(result!.status, "ok");
+    const totalDiags = result!.diagnostics.filter((d) => d.severity === 1).length
+      + result!.otherFiles.reduce((s, f) => s + f.errorCount, 0);
     assert.ok(totalDiags > 0, "expected diagnostics from cross-file breakage");
   });
 });

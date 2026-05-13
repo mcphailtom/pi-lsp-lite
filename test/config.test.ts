@@ -258,6 +258,58 @@ describe("loadConfig", () => {
     const config = await loadConfig(dir, globalPath);
     assert.ok(!config.servers.some((s) => s.id === "bad"));
   });
+
+  it("maxRetries passes through to server config", async () => {
+    const dir = await makeTempDir();
+    await writeFile(join(dir, ".pi-lsp-lite.json"), JSON.stringify({
+      servers: {
+        go: { maxRetries: 5 },
+      },
+    }));
+    const config = await loadConfig(dir, join(dir, "nonexistent-global.json"));
+    const go = config.servers.find((s) => s.id === "go");
+    assert.ok(go);
+    assert.equal(go.maxRetries, 5);
+  });
+
+  it("clamps maxRetries to maximum of 10", async () => {
+    const dir = await makeTempDir();
+    await writeFile(join(dir, ".pi-lsp-lite.json"), JSON.stringify({
+      servers: {
+        go: { maxRetries: 999 },
+      },
+    }));
+    const config = await loadConfig(dir, join(dir, "nonexistent-global.json"));
+    const go = config.servers.find((s) => s.id === "go");
+    assert.ok(go);
+    assert.equal(go.maxRetries, 10);
+  });
+
+  it("clamps maxRetries to minimum of 0", async () => {
+    const dir = await makeTempDir();
+    await writeFile(join(dir, ".pi-lsp-lite.json"), JSON.stringify({
+      servers: {
+        go: { maxRetries: -5 },
+      },
+    }));
+    const config = await loadConfig(dir, join(dir, "nonexistent-global.json"));
+    const go = config.servers.find((s) => s.id === "go");
+    assert.ok(go);
+    assert.equal(go.maxRetries, 0);
+  });
+
+  it("non-numeric maxRetries falls back to default of 3", async () => {
+    const dir = await makeTempDir();
+    await writeFile(join(dir, ".pi-lsp-lite.json"), JSON.stringify({
+      servers: {
+        go: { maxRetries: "many" },
+      },
+    }));
+    const config = await loadConfig(dir, join(dir, "nonexistent-global.json"));
+    const go = config.servers.find((s) => s.id === "go");
+    assert.ok(go);
+    assert.equal(go.maxRetries, 3);
+  });
 });
 
 describe("writeGlobalConfig", () => {

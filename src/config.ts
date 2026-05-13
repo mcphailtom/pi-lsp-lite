@@ -10,6 +10,7 @@ export interface ServerConfigOverride {
   args?: string[];
   rootPatterns?: string[];
   diagnosticTimeout?: number;
+  maxRetries?: number;
   disabled?: boolean;
 }
 
@@ -28,13 +29,16 @@ export interface ResolvedConfig {
 
 export const DEFAULT_DIAGNOSTIC_TIMEOUT = 5_000;
 export const DEFAULT_DOCUMENT_IDLE_TIMEOUT = 120_000;
+export const DEFAULT_MAX_RETRIES = 3;
 
 const MIN_DIAGNOSTIC_TIMEOUT = 1_000;
 const MAX_DIAGNOSTIC_TIMEOUT = 60_000;
 const MIN_DOCUMENT_IDLE_TIMEOUT = 10_000;
 const MAX_DOCUMENT_IDLE_TIMEOUT = 600_000;
+const MIN_MAX_RETRIES = 0;
+const MAX_MAX_RETRIES = 10;
 
-function clampTimeout(value: unknown, min: number, max: number, fallback: number): number {
+function clamp(value: unknown, min: number, max: number, fallback: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   return Math.max(min, Math.min(max, value));
 }
@@ -90,11 +94,20 @@ function validateOverride(id: string, raw: unknown): ServerConfigOverride | null
   }
 
   if (raw.diagnosticTimeout !== undefined) {
-    override.diagnosticTimeout = clampTimeout(
+    override.diagnosticTimeout = clamp(
       raw.diagnosticTimeout,
       MIN_DIAGNOSTIC_TIMEOUT,
       MAX_DIAGNOSTIC_TIMEOUT,
       DEFAULT_DIAGNOSTIC_TIMEOUT,
+    );
+  }
+
+  if (raw.maxRetries !== undefined) {
+    override.maxRetries = clamp(
+      raw.maxRetries,
+      MIN_MAX_RETRIES,
+      MAX_MAX_RETRIES,
+      DEFAULT_MAX_RETRIES,
     );
   }
 
@@ -179,6 +192,7 @@ function mergeConfigs(
         command: override.command,
         args: override.args ?? [],
         rootPatterns: override.rootPatterns ?? [],
+        ...(override.maxRetries !== undefined && { maxRetries: override.maxRetries }),
       });
     }
   }
@@ -270,10 +284,10 @@ export async function loadConfig(cwd: string, globalConfigPath?: string): Promis
       }
     }
     if (layer.diagnosticTimeout !== undefined) {
-      diagnosticTimeout = clampTimeout(layer.diagnosticTimeout, MIN_DIAGNOSTIC_TIMEOUT, MAX_DIAGNOSTIC_TIMEOUT, diagnosticTimeout);
+      diagnosticTimeout = clamp(layer.diagnosticTimeout, MIN_DIAGNOSTIC_TIMEOUT, MAX_DIAGNOSTIC_TIMEOUT, diagnosticTimeout);
     }
     if (layer.documentIdleTimeout !== undefined) {
-      documentIdleTimeout = clampTimeout(layer.documentIdleTimeout, MIN_DOCUMENT_IDLE_TIMEOUT, MAX_DOCUMENT_IDLE_TIMEOUT, documentIdleTimeout);
+      documentIdleTimeout = clamp(layer.documentIdleTimeout, MIN_DOCUMENT_IDLE_TIMEOUT, MAX_DOCUMENT_IDLE_TIMEOUT, documentIdleTimeout);
     }
   }
 

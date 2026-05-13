@@ -34,9 +34,16 @@ describe("pylsp integration", { skip: !process.env.INTEGRATION }, () => {
     const filePath = join(dir, "syntax_error.py");
     await writeFile(filePath, "def broken(:\n");
 
-    const result = await manager.handleEdit(filePath, pyConfig, dir);
-    assert.equal(result.status, "ok");
-    assert.ok(result.diagnostics.length > 0, "expected at least one diagnostic for syntax error");
+    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
+    for (let i = 0; i < 15; i++) {
+      result = await manager.handleEdit(filePath, pyConfig, dir);
+      if (result.diagnostics.some((d) => d.severity === 1)) break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    assert.ok(result, "expected a result");
+    assert.equal(result!.status, "ok");
+    assert.ok(result!.diagnostics.some((d) => d.severity === 1), "expected at least one error diagnostic for syntax error");
 
     // fix so it doesn't pollute subsequent tests
     await writeFile(filePath, "def fixed():\n    pass\n");
@@ -48,7 +55,7 @@ describe("pylsp integration", { skip: !process.env.INTEGRATION }, () => {
     await writeFile(filePath, "def greet(name: str) -> str:\n    return f'hello {name}'\n");
 
     let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 15; i++) {
       result = await manager.handleEdit(filePath, pyConfig, dir);
       const hasErrors = result.diagnostics.some((d) => d.severity === 1);
       if (!hasErrors) break;

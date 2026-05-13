@@ -9,6 +9,10 @@ export function formatDiagnostics(filePath: string, result: DiagnosticResult): s
   if (relevant.length === 0 && result.status === "ok" && result.otherFiles.length === 0) return "";
   if (result.status === "unavailable") return "";
 
+  const retryNote = result.status === "timeout" && result.retryAttempts > 0
+    ? ` after ${result.retryAttempts} ${result.retryAttempts === 1 ? "retry" : "retries"}`
+    : "";
+
   if (relevant.length === 0 && result.status === "ok" && result.otherFiles.length > 0) {
     return `\n⚠ LSP diagnostics for ${filePath}: no issues${otherFilesFooter(result)}`;
   }
@@ -27,7 +31,7 @@ export function formatDiagnostics(filePath: string, result: DiagnosticResult): s
   const summary = [
     errorCount > 0 ? `${errorCount} error${errorCount > 1 ? "s" : ""}` : "",
     warnCount > 0 ? `${warnCount} warning${warnCount > 1 ? "s" : ""}` : "",
-    result.status === "timeout" ? "timed out, may be incomplete" : "",
+    result.status === "timeout" ? `timed out${retryNote}, may be incomplete` : "",
   ]
     .filter(Boolean)
     .join(", ");
