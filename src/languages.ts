@@ -22,7 +22,7 @@ export const builtinLanguages: LanguageServerConfig[] = [
     command: "rust-analyzer",
     args: [],
     rootPatterns: ["Cargo.toml"],
-    diagnosticTimeout: 30_000,
+    diagnosticTimeout: 60_000,
   },
   {
     id: "typescript",

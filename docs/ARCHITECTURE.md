@@ -87,7 +87,7 @@ Each built-in language server has a default diagnostic timeout calibrated to its
 | Server | Timeout | Rationale |
 |--------|---------|----------|
 | gopls | 5s | Fast indexing, quick diagnostics even on cold start |
-| rust-analyzer | 30s | Slow cold start, needs time for workspace indexing |
+| rust-analyzer | 60s | Slow cold start on CI, needs workspace indexing time |
 | typescript-language-server | 30s | Cross-file analysis can be slow on workspace changes |
 | pylsp | 15s | Moderate cold start, plugin-dependent analysis speed |
 | clangd | 15s | Fast for single files, slower for projects without compile_commands.json |
