@@ -14,7 +14,7 @@ describe("clangd integration", { skip: !process.env.INTEGRATION }, () => {
   let dir: string;
 
   before(async () => {
-    manager = createServerManager();
+    manager = createServerManager({ maxRetries: 0 });
     dir = join(tmpdir(), `pi-lsp-cpp-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, "compile_commands.json"), JSON.stringify([

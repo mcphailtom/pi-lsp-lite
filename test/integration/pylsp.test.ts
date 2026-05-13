@@ -14,7 +14,7 @@ describe("pylsp integration", { skip: !process.env.INTEGRATION }, () => {
   let dir: string;
 
   before(async () => {
-    manager = createServerManager();
+    manager = createServerManager({ maxRetries: 0 });
     dir = join(tmpdir(), `pi-lsp-py-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, "pyproject.toml"), '[project]\nname = "test"\nversion = "0.1.0"\n');

@@ -59,7 +59,7 @@ Diagnostic collection uses a two-trigger approach to handle both direct and cros
 
 **Why compare against the snapshot:** A stale re-publish (server re-confirming existing diagnostics) doesn't change counts relative to the snapshot, so it's ignored. Only genuine impact from the current edit triggers settling. This prevents false positives when the server republishes for unrelated files.
 
-**Timeout fallback:** If neither trigger fires within the per-language timeout (gopls: 5s, rust-analyzer: 30s, typescript: 30s), the wait settles with `status: "timeout"`. The server-manager then retries the edit with exponential backoff (base 500ms × 2^attempt + 0-50% jitter) up to `maxRetries` times (default 3). If any retry succeeds, that result is returned. If all retries are exhausted, the final timeout result includes `retryAttempts` so the agent/user knows the extension tried. Cross-file data collected up to that point is still included in `otherFiles`.
+**Timeout fallback:** If neither trigger fires within the per-language timeout (gopls: 5s, rust-analyzer: 30s, typescript: 30s), the wait settles with `status: "timeout"`. The server-manager then retries the edit with exponential backoff (base 500ms × 2^attempt, capped at 30s per delay, plus 0-50% random jitter) up to `maxRetries` times (default 3). If any retry succeeds, that result is returned. If all retries are exhausted, the final timeout result includes `retryAttempts` so the agent/user knows the extension tried. Cross-file data collected up to that point is still included in `otherFiles`.
 
 ```
 handleEdit(lib.ts):

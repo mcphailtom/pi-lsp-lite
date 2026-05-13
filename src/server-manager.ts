@@ -205,7 +205,9 @@ export function createServerManager(options: ServerManagerOptions = {}): ServerM
   }
 
   function getMaxRetries(config: LanguageServerConfig): number {
-    return config.maxRetries ?? defaultMaxRetries;
+    const raw = config.maxRetries ?? defaultMaxRetries;
+    if (typeof raw !== "number" || !Number.isFinite(raw)) return defaultMaxRetries;
+    return Math.max(0, Math.min(10, Math.floor(raw)));
   }
 
   async function doEdit(server: ManagedServer, filePath: string): Promise<DiagnosticResult> {
@@ -232,6 +234,7 @@ export function createServerManager(options: ServerManagerOptions = {}): ServerM
       await new Promise((resolve) => setTimeout(resolve, baseDelay + jitter));
 
       server.client.didChange(uri, content);
+      server.openDocuments.set(uri, Date.now());
       const result = await server.client.waitForDiagnostics(uri, timeout);
       result.retryAttempts = attempt + 1;
 

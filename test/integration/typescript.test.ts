@@ -14,7 +14,7 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
   let dir: string;
 
   before(async () => {
-    manager = createServerManager();
+    manager = createServerManager({ maxRetries: 0 });
     dir = join(tmpdir(), `pi-lsp-ts-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     await mkdir(dir, { recursive: true });
     await writeFile(

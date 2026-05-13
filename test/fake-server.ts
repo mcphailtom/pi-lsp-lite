@@ -125,7 +125,7 @@ if (process.argv.includes("--run")) {
     if (raw.crashOnInit) options.crashOnInit = raw.crashOnInit;
     if (raw.neverPublish) options.neverPublish = raw.neverPublish;
     if (raw.neverShutdown) options.neverShutdown = raw.neverShutdown;
-    if (raw.publishOnAttempt) options.publishOnAttempt = raw.publishOnAttempt;
+    if (raw.publishOnAttempt !== undefined) options.publishOnAttempt = raw.publishOnAttempt;
     if (raw.diagnosticsByUri) {
       options.diagnosticsByUri = new Map(Object.entries(raw.diagnosticsByUri));
     }
