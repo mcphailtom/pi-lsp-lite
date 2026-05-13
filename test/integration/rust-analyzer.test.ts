@@ -48,7 +48,7 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
 
     // rust-analyzer may still be publishing stale diagnostics from the previous
     // syntax error test — poll until diagnostics clear
-    let result;
+    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
     for (let i = 0; i < 10; i++) {
       result = await manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir);
       const hasErrors = result.diagnostics.some((d) => d.severity === 1);

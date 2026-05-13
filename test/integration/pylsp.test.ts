@@ -47,7 +47,7 @@ describe("pylsp integration", { skip: !process.env.INTEGRATION }, () => {
     const filePath = join(dir, "clean.py");
     await writeFile(filePath, "def greet(name: str) -> str:\n    return f'hello {name}'\n");
 
-    let result;
+    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
     for (let i = 0; i < 10; i++) {
       result = await manager.handleEdit(filePath, pyConfig, dir);
       const hasErrors = result.diagnostics.some((d) => d.severity === 1);

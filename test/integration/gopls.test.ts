@@ -46,7 +46,7 @@ describe("gopls integration", { skip: !process.env.INTEGRATION }, () => {
     const filePath = join(dir, "clean.go");
     await writeFile(filePath, 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hello")\n}\n');
 
-    let result;
+    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
     for (let i = 0; i < 10; i++) {
       result = await manager.handleEdit(filePath, goConfig, dir);
       const hasErrors = result.diagnostics.some((d) => d.severity === 1);

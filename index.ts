@@ -138,8 +138,14 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify("pi-lsp-lite: server ID must be lowercase alphanumeric, hyphens, or underscores", "error");
         return;
       }
+      const RESERVED_IDS = new Set(["__proto__", "constructor", "prototype"]);
+      if (RESERVED_IDS.has(id)) {
+        ctx.ui.notify("pi-lsp-lite: reserved ID, choose a different name", "error");
+        return;
+      }
 
-      const command = await ctx.ui.input("Binary command (e.g. haskell-language-server-wrapper):");
+      const rawCommand = await ctx.ui.input("Binary command (e.g. haskell-language-server-wrapper):");
+      const command = rawCommand?.trim();
       if (!command) return;
 
       const argsRaw = await ctx.ui.input("CLI args (comma-separated, or empty):");
@@ -206,7 +212,10 @@ export default function (pi: ExtensionAPI) {
 
       // include disabled user-added servers from global config so they can be re-enabled
       const globalConfig = await readGlobalConfig();
-      const globalServerIds = globalConfig?.servers ? Object.keys(globalConfig.servers) : [];
+      const RESERVED = new Set(["__proto__", "constructor", "prototype"]);
+      const globalServerIds = (globalConfig?.servers && typeof globalConfig.servers === "object" && !Array.isArray(globalConfig.servers))
+        ? Object.keys(globalConfig.servers).filter((k) => !RESERVED.has(k))
+        : [];
       const allIds = new Set<string>([...builtinIds, ...activeIds, ...globalServerIds]);
 
       if (allIds.size === 0) {

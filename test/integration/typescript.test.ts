@@ -50,7 +50,7 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
     const filePath = join(dir, "clean.ts");
     await writeFile(filePath, "export const _clean: number = 42;\nconsole.log(_clean);\n");
 
-    let result;
+    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
     for (let i = 0; i < 10; i++) {
       result = await manager.handleEdit(filePath, tsConfig, dir);
       const hasErrors = result.diagnostics.some((d) => d.severity === 1);

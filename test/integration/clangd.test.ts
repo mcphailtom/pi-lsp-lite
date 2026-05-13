@@ -35,7 +35,7 @@ describe("clangd integration", { skip: !process.env.INTEGRATION }, () => {
   it("reports no errors for clean file", async () => {
     await writeFile(join(dir, "main.c"), '#include <stdio.h>\nint main(void) {\n    printf("hello\\n");\n    return 0;\n}\n');
 
-    let result;
+    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
     for (let i = 0; i < 10; i++) {
       result = await manager.handleEdit(join(dir, "main.c"), cppConfig, dir);
       const hasErrors = result.diagnostics.some((d) => d.severity === 1);

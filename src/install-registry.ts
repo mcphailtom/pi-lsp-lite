@@ -21,7 +21,7 @@ export const installRegistry = new Map<string, InstallEntry>([
     description: "Python language server",
   }],
   ["cpp", {
-    command: "apt install clangd || brew install llvm",
+    command: "sudo apt-get install -y clangd || brew install llvm",
     description: "C/C++ language server",
   }],
 ]);

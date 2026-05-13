@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -212,14 +212,22 @@ async function writeGlobalConfigInner(config: UserConfig, globalConfigPath?: str
   const dir = dirname(filePath);
   await mkdir(dir, { recursive: true });
   const tmpPath = join(dir, `.tmp-${randomUUID()}`);
-  await writeFile(tmpPath, JSON.stringify(merged, null, 2) + "\n", "utf-8");
-  await rename(tmpPath, filePath);
+  try {
+    await writeFile(tmpPath, JSON.stringify(merged, null, 2) + "\n", "utf-8");
+    await rename(tmpPath, filePath);
+  } catch (err) {
+    await unlink(tmpPath).catch(() => {});
+    throw err;
+  }
 }
 
 const RESERVED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
-  const result = { ...target };
+  const result: Record<string, unknown> = Object.create(null);
+  for (const key of Object.keys(target)) {
+    if (!RESERVED_KEYS.has(key)) result[key] = target[key];
+  }
   for (const key of Object.keys(source)) {
     if (RESERVED_KEYS.has(key)) continue;
     const sv = source[key];
