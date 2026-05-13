@@ -14,7 +14,7 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
   let srcDir: string;
 
   before(async () => {
-    manager = createServerManager({ diagnosticTimeout: 120_000 });
+    manager = createServerManager({ perServerTimeout: new Map([["rust", 120_000]]) });
     dir = join(tmpdir(), `pi-lsp-rust-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     srcDir = join(dir, "src");
     await mkdir(srcDir, { recursive: true });
