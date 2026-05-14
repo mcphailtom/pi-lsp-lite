@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { which, fileUri, findWorkspaceRoot } from "./util.js";
 import { createLspClient, type LspClient, type DiagnosticResult } from "./client.js";
-import type { LanguageServerConfig } from "./languages.js";
+import { type LanguageServerConfig, languageIdForFile } from "./languages.js";
 import type { Diagnostic } from "vscode-languageserver-protocol";
 import { DEFAULT_DIAGNOSTIC_TIMEOUT, DEFAULT_DOCUMENT_IDLE_TIMEOUT, DEFAULT_MAX_RETRIES } from "./config.js";
 import { readFile } from "node:fs/promises";
@@ -221,7 +221,7 @@ export function createServerManager(options: ServerManagerOptions = {}): ServerM
     if (server.openDocuments.has(uri)) {
       server.client.didChange(uri, content);
     } else {
-      server.client.didOpen(uri, server.config.id, content);
+      server.client.didOpen(uri, languageIdForFile(filePath, server.config), content);
     }
     server.openDocuments.set(uri, Date.now());
 

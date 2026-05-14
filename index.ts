@@ -4,9 +4,9 @@ import { languageForFile, checkExtensionOverlaps, builtinLanguages, type Languag
 import { formatDiagnostics } from "./src/format.js";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol";
 import { loadConfig, writeGlobalConfig, readGlobalConfig } from "./src/config.js";
-import { fileUri, which } from "./src/util.js";
+import { fileUri, which, isInsideCwd } from "./src/util.js";
 import { installRegistry } from "./src/install-registry.js";
-import { resolve, relative, isAbsolute } from "node:path";
+import { resolve } from "node:path";
 import { realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -47,8 +47,7 @@ export default function (pi: ExtensionAPI) {
     } catch {
       return;
     }
-    const rel = relative(ctx.cwd, absolutePath);
-    if (!rel || rel.startsWith("..") || isAbsolute(rel)) return;
+    if (!isInsideCwd(absolutePath, ctx.cwd)) return;
     const langConfig = languageForFile(absolutePath, servers);
     if (!langConfig) return;
 

@@ -54,6 +54,28 @@ function countDiagnostics(diags: Diagnostic[]): { errors: number; warnings: numb
   return { errors, warnings };
 }
 
+function diagnosticFingerprint(d: Diagnostic): string {
+  return `${d.severity}:${d.range.start.line}:${d.range.start.character}:${d.message}`;
+}
+
+function fingerprintSet(diags: Diagnostic[]): Set<string> {
+  const set = new Set<string>();
+  for (const d of diags) {
+    if (d.severity === DiagnosticSeverity.Error || d.severity === DiagnosticSeverity.Warning) {
+      set.add(diagnosticFingerprint(d));
+    }
+  }
+  return set;
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) {
+    if (!b.has(v)) return false;
+  }
+  return true;
+}
+
 export function createLspClient(child: ChildProcess): LspClient {
   if (!child.stdout || !child.stdin) {
     throw new Error("LSP child process must be spawned with stdio: pipe");
@@ -153,10 +175,10 @@ export function createLspClient(child: ChildProcess): LspClient {
     async waitForDiagnostics(uri: string, timeoutMs: number): Promise<DiagnosticResult> {
       const targetGen = uriGeneration.get(uri) ?? 0;
 
-      const preSnapshot = new Map<string, { errors: number; warnings: number }>();
+      const preSnapshot = new Map<string, Set<string>>();
       for (const [trackedUri, entry] of diagnosticsMap) {
         if (trackedUri !== uri) {
-          preSnapshot.set(trackedUri, countDiagnostics(entry.diagnostics));
+          preSnapshot.set(trackedUri, fingerprintSet(entry.diagnostics));
         }
       }
 
@@ -164,29 +186,27 @@ export function createLspClient(child: ChildProcess): LspClient {
         const result: OtherFileDiagnostics[] = [];
         for (const [trackedUri, entry] of diagnosticsMap) {
           if (trackedUri === uri) continue;
+          const postFp = fingerprintSet(entry.diagnostics);
+          const preFp = preSnapshot.get(trackedUri) ?? new Set();
+          if (setsEqual(postFp, preFp)) continue;
           const post = countDiagnostics(entry.diagnostics);
-          const pre = preSnapshot.get(trackedUri) ?? { errors: 0, warnings: 0 };
-          const newErrors = post.errors - pre.errors;
-          const newWarnings = post.warnings - pre.warnings;
-          if (newErrors > 0 || newWarnings > 0) {
-            const first =
-              entry.diagnostics.find((d) => d.severity === DiagnosticSeverity.Error) ??
-              entry.diagnostics.find((d) => d.severity === DiagnosticSeverity.Warning);
-            result.push({
-              uri: trackedUri,
-              errorCount: newErrors,
-              warningCount: newWarnings,
-              ...(first && {
-                firstDiagnostic: {
-                  severity: first.severity ?? DiagnosticSeverity.Error,
-                  line: first.range.start.line,
-                  col: first.range.start.character,
-                  message: first.message,
-                  ...(first.source && { source: first.source }),
-                },
-              }),
-            });
-          }
+          const first =
+            entry.diagnostics.find((d) => d.severity === DiagnosticSeverity.Error) ??
+            entry.diagnostics.find((d) => d.severity === DiagnosticSeverity.Warning);
+          result.push({
+            uri: trackedUri,
+            errorCount: post.errors,
+            warningCount: post.warnings,
+            ...(first && {
+              firstDiagnostic: {
+                severity: first.severity ?? DiagnosticSeverity.Error,
+                line: first.range.start.line,
+                col: first.range.start.character,
+                message: first.message,
+                ...(first.source && { source: first.source }),
+              },
+            }),
+          });
         }
         return result;
       };
@@ -231,9 +251,9 @@ export function createLspClient(child: ChildProcess): LspClient {
         // edited file is valid but dependents break
         crossFileCallback = (changedUri: string) => {
           if (settled || changedUri === uri) return;
-          const pre = preSnapshot.get(changedUri) ?? { errors: 0, warnings: 0 };
-          const post = countDiagnostics(diagnosticsMap.get(changedUri)?.diagnostics ?? []);
-          if (post.errors !== pre.errors || post.warnings !== pre.warnings) {
+          const preFp = preSnapshot.get(changedUri) ?? new Set<string>();
+          const postFp = fingerprintSet(diagnosticsMap.get(changedUri)?.diagnostics ?? []);
+          if (!setsEqual(preFp, postFp)) {
             clearTimeout(timeout);
             resetQuiescence();
           }

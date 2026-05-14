@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { builtinLanguages, languageForFile, checkExtensionOverlaps, type LanguageServerConfig } from "../src/languages.js";
+import { builtinLanguages, languageForFile, languageIdForFile, checkExtensionOverlaps, type LanguageServerConfig } from "../src/languages.js";
 
 const goConfig: LanguageServerConfig = { id: "go", extensions: [".go"], command: "gopls", args: ["serve"], rootPatterns: ["go.mod"] };
 const tsConfig: LanguageServerConfig = { id: "typescript", extensions: [".ts", ".tsx", ".js", ".jsx"], command: "typescript-language-server", args: ["--stdio"], rootPatterns: ["tsconfig.json", "package.json"] };
@@ -147,5 +147,41 @@ describe("checkExtensionOverlaps", () => {
     assert.equal(warnings.length, 2);
     assert.ok(warnings.some((w) => w.includes(".go")));
     assert.ok(warnings.some((w) => w.includes(".rs")));
+  });
+});
+
+describe("languageIdForFile", () => {
+  const ts = builtinLanguages.find((l) => l.id === "typescript")!;
+  const cpp = builtinLanguages.find((l) => l.id === "cpp")!;
+
+  it("returns server id for extensions without a mapping", () => {
+    assert.equal(languageIdForFile("/project/main.ts", ts), "typescript");
+    assert.equal(languageIdForFile("/project/main.go", goConfig), "go");
+  });
+
+  it("returns mapped language id for .js files", () => {
+    assert.equal(languageIdForFile("/project/main.js", ts), "javascript");
+  });
+
+  it("returns mapped language id for .jsx files", () => {
+    assert.equal(languageIdForFile("/project/app.jsx", ts), "javascriptreact");
+  });
+
+  it("returns mapped language id for .tsx files", () => {
+    assert.equal(languageIdForFile("/project/app.tsx", ts), "typescriptreact");
+  });
+
+  it("returns c for .c and .h files under cpp config", () => {
+    assert.equal(languageIdForFile("/project/main.c", cpp), "c");
+    assert.equal(languageIdForFile("/project/util.h", cpp), "c");
+  });
+
+  it("returns cpp for .cpp and .hpp files", () => {
+    assert.equal(languageIdForFile("/project/main.cpp", cpp), "cpp");
+    assert.equal(languageIdForFile("/project/util.hpp", cpp), "cpp");
+  });
+
+  it("falls back to server id when config has no languageIds", () => {
+    assert.equal(languageIdForFile("/project/main.py", pyConfig), "python");
   });
 });

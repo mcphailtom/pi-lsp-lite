@@ -6,6 +6,7 @@ export interface LanguageServerConfig {
   rootPatterns: string[];
   diagnosticTimeout?: number;
   maxRetries?: number;
+  languageIds?: Record<string, string>;
 }
 
 export const builtinLanguages: LanguageServerConfig[] = [
@@ -32,6 +33,7 @@ export const builtinLanguages: LanguageServerConfig[] = [
     args: ["--stdio"],
     rootPatterns: ["tsconfig.json", "package.json"],
     diagnosticTimeout: 30_000,
+    languageIds: { ".tsx": "typescriptreact", ".js": "javascript", ".jsx": "javascriptreact" },
   },
   {
     id: "python",
@@ -48,12 +50,21 @@ export const builtinLanguages: LanguageServerConfig[] = [
     args: [],
     rootPatterns: ["compile_commands.json", "CMakeLists.txt", ".clangd"],
     diagnosticTimeout: 15_000,
+    languageIds: { ".c": "c", ".h": "c", ".cc": "cpp", ".cxx": "cpp", ".hpp": "cpp", ".hxx": "cpp" },
   },
 ];
 
 export function languageForFile(path: string, configs: LanguageServerConfig[]): LanguageServerConfig | undefined {
   const lower = path.toLowerCase();
   return configs.find((lang) => lang.extensions.some((ext) => lower.endsWith(ext)));
+}
+
+export function languageIdForFile(filePath: string, config: LanguageServerConfig): string {
+  if (config.languageIds) {
+    const ext = filePath.toLowerCase().match(/\.[^.]+$/)?.[0];
+    if (ext && config.languageIds[ext]) return config.languageIds[ext];
+  }
+  return config.id;
 }
 
 export function checkExtensionOverlaps(configs: LanguageServerConfig[]): string[] {

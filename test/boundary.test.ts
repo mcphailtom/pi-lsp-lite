@@ -1,11 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { resolve, relative, isAbsolute } from "node:path";
-
-function isInsideCwd(absolutePath: string, cwd: string): boolean {
-  const rel = relative(cwd, absolutePath);
-  return !!rel && !rel.startsWith("..") && !isAbsolute(rel);
-}
+import { resolve } from "node:path";
+import { isInsideCwd } from "../src/util.js";
 
 describe("cwd boundary check", () => {
   it("rejects a path outside cwd", () => {

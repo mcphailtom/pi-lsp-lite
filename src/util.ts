@@ -1,5 +1,5 @@
 import { access, constants } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join, dirname, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export function fileUri(absolutePath: string): string {
@@ -41,4 +41,9 @@ export async function findWorkspaceRoot(filePath: string, rootPatterns: string[]
     dir = parent;
   }
   return cwd;
+}
+
+export function isInsideCwd(absolutePath: string, cwd: string): boolean {
+  const rel = relative(cwd, absolutePath);
+  return !!rel && !rel.startsWith("..") && !isAbsolute(rel);
 }
