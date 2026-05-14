@@ -38,6 +38,7 @@ export default function (pi: ExtensionAPI) {
     const rawPath = event.input?.path;
     const filePath = typeof rawPath === "string" ? rawPath : undefined;
     if (!filePath) return;
+    if (event.isError) return;
 
     const absolutePath = resolve(ctx.cwd, filePath);
     const rel = relative(ctx.cwd, absolutePath);
@@ -47,7 +48,7 @@ export default function (pi: ExtensionAPI) {
 
     try {
       const result = await manager.handleEdit(absolutePath, langConfig, ctx.cwd);
-      const formatted = formatDiagnostics(filePath, result);
+      const formatted = formatDiagnostics(filePath, result, ctx.cwd);
       if (!formatted) return;
 
       ctx.ui.notify(formatted.trim(), "warning");

@@ -1,20 +1,25 @@
 import { DiagnosticSeverity } from "vscode-languageserver-protocol";
+import { fileURLToPath } from "node:url";
+import { relative } from "node:path";
 import type { DiagnosticResult } from "./client.js";
 
-export function formatDiagnostics(filePath: string, result: DiagnosticResult): string {
+export function formatDiagnostics(filePath: string, result: DiagnosticResult, cwd?: string): string {
   const relevant = result.diagnostics.filter(
     (d) => d.severity === DiagnosticSeverity.Error || d.severity === DiagnosticSeverity.Warning,
   );
 
   if (relevant.length === 0 && result.status === "ok" && result.otherFiles.length === 0) return "";
-  if (result.status === "unavailable") return "";
+
+  if (result.status === "unavailable") {
+    return `\n⚠ LSP diagnostics unavailable for ${filePath} (server missing or failed to start)`;
+  }
 
   const retryNote = result.status === "timeout" && result.retryAttempts > 0
     ? ` after ${result.retryAttempts} ${result.retryAttempts === 1 ? "retry" : "retries"}`
     : "";
 
   if (relevant.length === 0 && result.status === "ok" && result.otherFiles.length > 0) {
-    return `\n⚠ LSP diagnostics for ${filePath}: no issues${otherFilesFooter(result)}`;
+    return `\n⚠ LSP diagnostics for ${filePath}: no issues${otherFilesFooter(result, cwd)}`;
   }
 
   const lines = relevant.map((d) => {
@@ -25,7 +30,10 @@ export function formatDiagnostics(filePath: string, result: DiagnosticResult): s
     return `  ${severity} ${line}:${col} ${source}${d.message}`;
   });
 
-  const errorCount = relevant.filter((d) => d.severity === DiagnosticSeverity.Error).length;
+  let errorCount = 0;
+  for (const d of relevant) {
+    if (d.severity === DiagnosticSeverity.Error) errorCount++;
+  }
   const warnCount = relevant.length - errorCount;
 
   const summary = [
@@ -36,12 +44,28 @@ export function formatDiagnostics(filePath: string, result: DiagnosticResult): s
     .filter(Boolean)
     .join(", ");
 
-  return `\n⚠ LSP diagnostics for ${filePath} (${summary}):\n${lines.join("\n")}${otherFilesFooter(result)}`;
+  return `\n⚠ LSP diagnostics for ${filePath} (${summary}):\n${lines.join("\n")}${otherFilesFooter(result, cwd)}`;
 }
 
-function otherFilesFooter(result: DiagnosticResult): string {
+function otherFilesFooter(result: DiagnosticResult, cwd?: string): string {
   if (result.otherFiles.length === 0) return "";
-  const totalDiags = result.otherFiles.reduce((sum, f) => sum + f.errorCount + f.warningCount, 0);
-  const fileCount = result.otherFiles.length;
-  return `\n  + ${totalDiags} diagnostic${totalDiags !== 1 ? "s" : ""} in ${fileCount} other file${fileCount !== 1 ? "s" : ""}`;
+  const lines = result.otherFiles.map((f) => {
+    let path: string;
+    try {
+      const abs = fileURLToPath(f.uri);
+      path = cwd ? relative(cwd, abs) : abs;
+    } catch {
+      path = f.uri;
+    }
+    const counts = [
+      f.errorCount > 0 ? `${f.errorCount} error${f.errorCount > 1 ? "s" : ""}` : "",
+      f.warningCount > 0 ? `${f.warningCount} warning${f.warningCount > 1 ? "s" : ""}` : "",
+    ].filter(Boolean).join(", ");
+    if (!f.firstDiagnostic) return `  ${path} (${counts})`;
+    const d = f.firstDiagnostic;
+    const sev = d.severity === DiagnosticSeverity.Error ? "error" : "warning";
+    const src = d.source ? `[${d.source}] ` : "";
+    return `  ${path} (${counts}): ${sev} ${d.line + 1}:${d.col + 1} ${src}${d.message}`;
+  });
+  return `\n${lines.join("\n")}`;
 }

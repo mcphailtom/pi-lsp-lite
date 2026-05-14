@@ -73,19 +73,49 @@ describe("formatDiagnostics", () => {
     assert.ok(output.includes("some error"));
   });
 
-  it("appends other-file footer when otherFiles is non-empty", () => {
+  it("shows per-file detail in other-file footer", () => {
     const result: DiagnosticResult = {
       status: "ok",
       diagnostics: [makeDiag(DiagnosticSeverity.Error, "type mismatch")],
       otherFiles: [
-        { uri: "file:///project/other.go", errorCount: 2, warningCount: 1 },
-        { uri: "file:///project/another.go", errorCount: 0, warningCount: 3 },
+        {
+          uri: "file:///project/other.go",
+          errorCount: 2,
+          warningCount: 1,
+          firstDiagnostic: { severity: DiagnosticSeverity.Error, line: 4, col: 2, message: "too many arguments", source: "compiler" },
+        },
+        {
+          uri: "file:///project/another.go",
+          errorCount: 0,
+          warningCount: 3,
+          firstDiagnostic: { severity: DiagnosticSeverity.Warning, line: 0, col: 0, message: "unused import", source: "compiler" },
+        },
       ],
       retryAttempts: 0,
     };
 
     const output = formatDiagnostics("main.go", result);
-    assert.ok(output.includes("6 diagnostics in 2 other files"));
+    assert.ok(output.includes("/project/other.go (2 errors, 1 warning): error 5:3 [compiler] too many arguments"), `expected per-file detail in: ${output}`);
+    assert.ok(output.includes("/project/another.go (3 warnings): warning 1:1 [compiler] unused import"), `expected per-file detail in: ${output}`);
+  });
+
+  it("shows relative paths when cwd is provided", () => {
+    const result: DiagnosticResult = {
+      status: "ok",
+      diagnostics: [],
+      otherFiles: [
+        {
+          uri: "file:///project/src/other.go",
+          errorCount: 1,
+          warningCount: 0,
+          firstDiagnostic: { severity: DiagnosticSeverity.Error, line: 9, col: 4, message: "undefined: bar" },
+        },
+      ],
+      retryAttempts: 0,
+    };
+
+    const output = formatDiagnostics("main.go", result, "/project");
+    assert.ok(output.includes("src/other.go (1 error): error 10:5 undefined: bar"), `expected relative path in: ${output}`);
   });
 
   it("shows other-file footer even when main file has no issues", () => {
@@ -97,7 +127,7 @@ describe("formatDiagnostics", () => {
     };
 
     const output = formatDiagnostics("main.go", result);
-    assert.ok(output.includes("1 diagnostic in 1 other file"));
+    assert.ok(output.includes("/project/other.go (1 error)"), `expected file path in: ${output}`);
   });
 
   it("filters out info and hint severity diagnostics", () => {
@@ -139,5 +169,19 @@ describe("formatDiagnostics", () => {
 
     const output = formatDiagnostics("main.go", result);
     assert.ok(output.includes("after 1 retry"), `expected 'after 1 retry' in: ${output}`);
+  });
+
+  it("surfaces unavailable status instead of returning empty", () => {
+    const result: DiagnosticResult = {
+      status: "unavailable",
+      diagnostics: [],
+      otherFiles: [],
+      retryAttempts: 0,
+    };
+
+    const output = formatDiagnostics("main.go", result);
+    assert.ok(output.includes("unavailable"), `expected 'unavailable' in: ${output}`);
+    assert.ok(output.includes("main.go"), `expected file path in: ${output}`);
+    assert.ok(output.includes("server missing or failed to start"), `expected reason in: ${output}`);
   });
 });

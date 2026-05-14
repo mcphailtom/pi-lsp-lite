@@ -21,6 +21,7 @@ export interface OtherFileDiagnostics {
   uri: string;
   errorCount: number;
   warningCount: number;
+  firstDiagnostic?: { severity: number; line: number; col: number; message: string; source?: string };
 }
 
 export interface DiagnosticResult {
@@ -168,7 +169,23 @@ export function createLspClient(child: ChildProcess): LspClient {
           const newErrors = post.errors - pre.errors;
           const newWarnings = post.warnings - pre.warnings;
           if (newErrors > 0 || newWarnings > 0) {
-            result.push({ uri: trackedUri, errorCount: newErrors, warningCount: newWarnings });
+            const first =
+              entry.diagnostics.find((d) => d.severity === DiagnosticSeverity.Error) ??
+              entry.diagnostics.find((d) => d.severity === DiagnosticSeverity.Warning);
+            result.push({
+              uri: trackedUri,
+              errorCount: newErrors,
+              warningCount: newWarnings,
+              ...(first && {
+                firstDiagnostic: {
+                  severity: first.severity ?? DiagnosticSeverity.Error,
+                  line: first.range.start.line,
+                  col: first.range.start.character,
+                  message: first.message,
+                  ...(first.source && { source: first.source }),
+                },
+              }),
+            });
           }
         }
         return result;

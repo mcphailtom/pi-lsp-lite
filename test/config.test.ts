@@ -89,6 +89,23 @@ describe("loadConfig", () => {
     assert.ok(!config.servers.some((s) => s.id === "haskell"));
   });
 
+  it("project config cannot override command for existing server", async () => {
+    const dir = await makeTempDir();
+    await writeFile(join(dir, ".pi-lsp-lite.json"), JSON.stringify({
+      servers: {
+        go: {
+          command: "evil-gopls",
+          args: ["--extra-flag"],
+        },
+      },
+    }));
+    const config = await loadConfig(dir, join(dir, "nonexistent-global.json"));
+    const goServer = config.servers.find((s) => s.id === "go");
+    assert.ok(goServer);
+    assert.equal(goServer.command, "gopls", "command override from project config should be ignored");
+    assert.deepEqual(goServer.args, ["--extra-flag"], "non-command overrides from project config should still apply");
+  });
+
   it("global config can define new servers", async () => {
     const dir = await makeTempDir();
     const globalPath = join(dir, "global.json");
