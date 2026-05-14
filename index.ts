@@ -7,6 +7,7 @@ import { loadConfig, writeGlobalConfig, readGlobalConfig } from "./src/config.js
 import { fileUri, which } from "./src/util.js";
 import { installRegistry } from "./src/install-registry.js";
 import { resolve, relative, isAbsolute } from "node:path";
+import { realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 export default function (pi: ExtensionAPI) {
@@ -40,7 +41,12 @@ export default function (pi: ExtensionAPI) {
     if (!filePath) return;
     if (event.isError) return;
 
-    const absolutePath = resolve(ctx.cwd, filePath);
+    let absolutePath: string;
+    try {
+      absolutePath = await realpath(resolve(ctx.cwd, filePath));
+    } catch {
+      return;
+    }
     const rel = relative(ctx.cwd, absolutePath);
     if (!rel || rel.startsWith("..") || isAbsolute(rel)) return;
     const langConfig = languageForFile(absolutePath, servers);

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServerManager } from "../../src/server-manager.js";
 import { builtinLanguages as languages } from "../../src/languages.js";
+import { pollUntil } from "../poll-until.js";
 
 const cppConfig = languages.find((l) => l.id === "cpp");
 if (!cppConfig) throw new Error("cpp config not found in languages");
@@ -35,31 +36,24 @@ describe("clangd integration", { skip: !process.env.INTEGRATION }, () => {
   it("reports no errors for clean file", async () => {
     await writeFile(join(dir, "main.c"), '#include <stdio.h>\nint main(void) {\n    printf("hello\\n");\n    return 0;\n}\n');
 
-    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
-    for (let i = 0; i < 15; i++) {
-      result = await manager.handleEdit(join(dir, "main.c"), cppConfig, dir);
-      const hasErrors = result.diagnostics.some((d) => d.severity === 1);
-      if (!hasErrors) break;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
+    const result = await pollUntil(
+      () => manager.handleEdit(join(dir, "main.c"), cppConfig, dir),
+      (r) => !r.diagnostics.some((d) => d.severity === 1),
+    );
 
-    assert.ok(result, "expected a result");
-    const hasErrors = result!.diagnostics.some((d) => d.severity === 1);
+    const hasErrors = result.diagnostics.some((d) => d.severity === 1);
     assert.equal(hasErrors, false, "expected no error diagnostics on clean file");
   });
 
   it("reports syntax error", async () => {
     await writeFile(join(dir, "main.c"), "int main( { return 0; }\n");
 
-    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
-    for (let i = 0; i < 15; i++) {
-      result = await manager.handleEdit(join(dir, "main.c"), cppConfig, dir);
-      if (result.diagnostics.some((d) => d.severity === 1)) break;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
+    const result = await pollUntil(
+      () => manager.handleEdit(join(dir, "main.c"), cppConfig, dir),
+      (r) => r.diagnostics.some((d) => d.severity === 1),
+    );
 
-    assert.ok(result, "expected a result");
-    assert.equal(result!.status, "ok");
-    assert.ok(result!.diagnostics.some((d) => d.severity === 1), "expected at least one error diagnostic for syntax error");
+    assert.equal(result.status, "ok");
+    assert.ok(result.diagnostics.some((d) => d.severity === 1), "expected at least one error diagnostic for syntax error");
   });
 });

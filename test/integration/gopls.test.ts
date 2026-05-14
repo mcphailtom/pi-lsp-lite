@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServerManager } from "../../src/server-manager.js";
 import { builtinLanguages as languages } from "../../src/languages.js";
+import { pollUntil } from "../poll-until.js";
 
 const goConfig = languages.find((l) => l.id === "go")!;
 
@@ -33,16 +34,13 @@ describe("gopls integration", { skip: !process.env.INTEGRATION }, () => {
     const filePath = join(dir, "syntax_error.go");
     await writeFile(filePath, "package main\n\nfunc main() {\n  fmt.Println(\n}\n");
 
-    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
-    for (let i = 0; i < 15; i++) {
-      result = await manager.handleEdit(filePath, goConfig, dir);
-      if (result.diagnostics.some((d) => d.severity === 1)) break;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
+    const result = await pollUntil(
+      () => manager.handleEdit(filePath, goConfig, dir),
+      (r) => r.diagnostics.some((d) => d.severity === 1),
+    );
 
-    assert.ok(result, "expected a result");
-    assert.equal(result!.status, "ok");
-    assert.ok(result!.diagnostics.some((d) => d.severity === 1), "expected at least one error diagnostic for syntax error");
+    assert.equal(result.status, "ok");
+    assert.ok(result.diagnostics.some((d) => d.severity === 1), "expected at least one error diagnostic for syntax error");
 
     // fix the error so it doesn't pollute subsequent tests
     await writeFile(filePath, "package main\n");
@@ -53,16 +51,12 @@ describe("gopls integration", { skip: !process.env.INTEGRATION }, () => {
     const filePath = join(dir, "clean.go");
     await writeFile(filePath, 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hello")\n}\n');
 
-    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
-    for (let i = 0; i < 15; i++) {
-      result = await manager.handleEdit(filePath, goConfig, dir);
-      const hasErrors = result.diagnostics.some((d) => d.severity === 1);
-      if (!hasErrors) break;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
+    const result = await pollUntil(
+      () => manager.handleEdit(filePath, goConfig, dir),
+      (r) => !r.diagnostics.some((d) => d.severity === 1),
+    );
 
-    assert.ok(result, "expected a result");
-    const hasErrors = result!.diagnostics.some((d) => d.severity === 1);
+    const hasErrors = result.diagnostics.some((d) => d.severity === 1);
     assert.equal(hasErrors, false, "expected no error diagnostics on clean file");
   });
 
@@ -86,19 +80,18 @@ describe("gopls integration", { skip: !process.env.INTEGRATION }, () => {
       "package main\n\nfunc Add(a, b, c int) int {\n\treturn a + b + c\n}\n",
     );
 
-    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
-    for (let i = 0; i < 15; i++) {
-      result = await manager.handleEdit(join(dir, "lib.go"), goConfig, dir);
-      const totalDiags = result.diagnostics.filter((d) => d.severity === 1).length
-        + result.otherFiles.reduce((s, f) => s + f.errorCount, 0);
-      if (totalDiags > 0) break;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
+    const result = await pollUntil(
+      () => manager.handleEdit(join(dir, "lib.go"), goConfig, dir),
+      (r) => {
+        const totalDiags = r.diagnostics.filter((d) => d.severity === 1).length
+          + r.otherFiles.reduce((s, f) => s + f.errorCount, 0);
+        return totalDiags > 0;
+      },
+    );
 
-    assert.ok(result, "expected a result");
-    assert.equal(result!.status, "ok");
-    const totalDiags = result!.diagnostics.filter((d) => d.severity === 1).length
-      + result!.otherFiles.reduce((s, f) => s + f.errorCount, 0);
+    assert.equal(result.status, "ok");
+    const totalDiags = result.diagnostics.filter((d) => d.severity === 1).length
+      + result.otherFiles.reduce((s, f) => s + f.errorCount, 0);
     assert.ok(totalDiags > 0, "expected diagnostics from cross-file breakage");
   });
 });

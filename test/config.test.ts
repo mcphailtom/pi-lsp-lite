@@ -389,6 +389,19 @@ describe("writeGlobalConfig", () => {
     assert.ok(!config.servers.find((s) => s.id === "go"));
   });
 
+  it("null value removes existing key via deepMerge", async () => {
+    const dir = await makeTempDir();
+    const globalPath = join(dir, "global.json");
+    await writeFile(globalPath, JSON.stringify({
+      diagnosticTimeout: 8000,
+      servers: { haskell: { command: "hls", extensions: [".hs"] } },
+    }));
+    await writeGlobalConfig({ diagnosticTimeout: null as unknown as number }, globalPath);
+    const raw = JSON.parse(await readFile(globalPath, "utf-8"));
+    assert.equal(raw.diagnosticTimeout, undefined, "null should remove the key");
+    assert.ok(raw.servers.haskell, "unrelated keys should be preserved");
+  });
+
   it("creates parent directories if needed", async () => {
     const dir = await makeTempDir();
     const globalPath = join(dir, "nested", "dir", "global.json");
