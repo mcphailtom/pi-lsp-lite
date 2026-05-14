@@ -66,7 +66,7 @@ function validateOverride(id: string, raw: unknown): ServerConfigOverride | null
       console.error(`[pi-lsp-lite] config "${id}": extensions must be a non-empty string array, skipping`);
       return null;
     }
-    override.extensions = (raw.extensions as string[]).map((e) => e.toLowerCase());
+    override.extensions = raw.extensions.map((e) => e.toLowerCase());
   }
 
   if (raw.command !== undefined) {
@@ -74,7 +74,7 @@ function validateOverride(id: string, raw: unknown): ServerConfigOverride | null
       console.error(`[pi-lsp-lite] config "${id}": command must be a non-empty string, skipping`);
       return null;
     }
-    override.command = raw.command as string;
+    override.command = raw.command;
   }
 
   if (raw.args !== undefined) {
@@ -82,7 +82,7 @@ function validateOverride(id: string, raw: unknown): ServerConfigOverride | null
       console.error(`[pi-lsp-lite] config "${id}": args must be a string array, skipping`);
       return null;
     }
-    override.args = raw.args as string[];
+    override.args = raw.args;
   }
 
   if (raw.rootPatterns !== undefined) {
@@ -90,7 +90,7 @@ function validateOverride(id: string, raw: unknown): ServerConfigOverride | null
       console.error(`[pi-lsp-lite] config "${id}": rootPatterns must be a string array, skipping`);
       return null;
     }
-    override.rootPatterns = raw.rootPatterns as string[];
+    override.rootPatterns = raw.rootPatterns;
   }
 
   if (raw.diagnosticTimeout !== undefined) {
@@ -150,12 +150,18 @@ async function findProjectConfig(cwd: string): Promise<UserConfig | null> {
 
 type ConfigSource = "global" | "project";
 
+interface MergeResult {
+  servers: LanguageServerConfig[];
+  perServerTimeouts: Map<string, number>;
+}
+
 function mergeConfigs(
   base: LanguageServerConfig[],
   overrides: Record<string, ServerConfigOverride>,
   source: ConfigSource,
-): LanguageServerConfig[] {
+): MergeResult {
   const result = new Map<string, LanguageServerConfig>();
+  const perServerTimeouts = new Map<string, number>();
 
   for (const server of base) {
     result.set(server.id, { ...server });
@@ -168,6 +174,10 @@ function mergeConfigs(
     if (override.disabled) {
       result.delete(id);
       continue;
+    }
+
+    if (override.diagnosticTimeout !== undefined) {
+      perServerTimeouts.set(id, override.diagnosticTimeout);
     }
 
     const existing = result.get(id);
@@ -201,7 +211,7 @@ function mergeConfigs(
     }
   }
 
-  return Array.from(result.values());
+  return { servers: Array.from(result.values()), perServerTimeouts };
 }
 
 export function globalConfigFilePath(globalConfigPath?: string): string {
@@ -279,12 +289,10 @@ export async function loadConfig(cwd: string, globalConfigPath?: string): Promis
   for (const [layer, source] of layers) {
     if (!layer) continue;
     if (layer.servers && isPlainObject(layer.servers)) {
-      servers = mergeConfigs(servers, layer.servers as Record<string, ServerConfigOverride>, source);
-      for (const [id, rawOverride] of Object.entries(layer.servers)) {
-        const override = validateOverride(id, rawOverride);
-        if (override?.diagnosticTimeout !== undefined) {
-          perServerTimeout.set(id, override.diagnosticTimeout);
-        }
+      const merged = mergeConfigs(servers, layer.servers as Record<string, ServerConfigOverride>, source);
+      servers = merged.servers;
+      for (const [id, timeout] of merged.perServerTimeouts) {
+        perServerTimeout.set(id, timeout);
       }
     }
     if (layer.diagnosticTimeout !== undefined) {

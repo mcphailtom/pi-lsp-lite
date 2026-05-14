@@ -3,16 +3,21 @@ import { fileURLToPath } from "node:url";
 import { relative } from "node:path";
 import type { DiagnosticResult } from "./client.js";
 
+const MAX_DIAGNOSTICS_PER_FILE = 50;
+
 export function formatDiagnostics(filePath: string, result: DiagnosticResult, cwd?: string): string {
-  const relevant = result.diagnostics.filter(
+  const allRelevant = result.diagnostics.filter(
     (d) => d.severity === DiagnosticSeverity.Error || d.severity === DiagnosticSeverity.Warning,
   );
 
-  if (relevant.length === 0 && result.status === "ok" && result.otherFiles.length === 0) return "";
+  if (allRelevant.length === 0 && result.status === "ok" && result.otherFiles.length === 0) return "";
 
   if (result.status === "unavailable") {
     return `\n⚠ LSP diagnostics unavailable for ${filePath} (server missing or failed to start)`;
   }
+
+  const truncated = allRelevant.length > MAX_DIAGNOSTICS_PER_FILE;
+  const relevant = truncated ? allRelevant.slice(0, MAX_DIAGNOSTICS_PER_FILE) : allRelevant;
 
   const retryNote = result.status === "timeout" && result.retryAttempts > 0
     ? ` after ${result.retryAttempts} ${result.retryAttempts === 1 ? "retry" : "retries"}`
@@ -31,10 +36,10 @@ export function formatDiagnostics(filePath: string, result: DiagnosticResult, cw
   });
 
   let errorCount = 0;
-  for (const d of relevant) {
+  for (const d of allRelevant) {
     if (d.severity === DiagnosticSeverity.Error) errorCount++;
   }
-  const warnCount = relevant.length - errorCount;
+  const warnCount = allRelevant.length - errorCount;
 
   const summary = [
     errorCount > 0 ? `${errorCount} error${errorCount > 1 ? "s" : ""}` : "",
@@ -44,7 +49,9 @@ export function formatDiagnostics(filePath: string, result: DiagnosticResult, cw
     .filter(Boolean)
     .join(", ");
 
-  return `\n⚠ LSP diagnostics for ${filePath} (${summary}):\n${lines.join("\n")}${otherFilesFooter(result, cwd)}`;
+  const truncatedNote = truncated ? `\n  ... and ${allRelevant.length - MAX_DIAGNOSTICS_PER_FILE} more` : "";
+
+  return `\n⚠ LSP diagnostics for ${filePath} (${summary}):\n${lines.join("\n")}${truncatedNote}${otherFilesFooter(result, cwd)}`;
 }
 
 function otherFilesFooter(result: DiagnosticResult, cwd?: string): string {

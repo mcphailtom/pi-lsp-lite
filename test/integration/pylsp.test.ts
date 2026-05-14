@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServerManager } from "../../src/server-manager.js";
 import { builtinLanguages as languages } from "../../src/languages.js";
+import { pollUntil } from "../poll-until.js";
 
 const pyConfig = languages.find((l) => l.id === "python");
 if (!pyConfig) throw new Error("python config not found in languages");
@@ -34,16 +35,13 @@ describe("pylsp integration", { skip: !process.env.INTEGRATION }, () => {
     const filePath = join(dir, "syntax_error.py");
     await writeFile(filePath, "def broken(:\n");
 
-    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
-    for (let i = 0; i < 15; i++) {
-      result = await manager.handleEdit(filePath, pyConfig, dir);
-      if (result.diagnostics.some((d) => d.severity === 1)) break;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
+    const result = await pollUntil(
+      () => manager.handleEdit(filePath, pyConfig, dir),
+      (r) => r.diagnostics.some((d) => d.severity === 1),
+    );
 
-    assert.ok(result, "expected a result");
-    assert.equal(result!.status, "ok");
-    assert.ok(result!.diagnostics.some((d) => d.severity === 1), "expected at least one error diagnostic for syntax error");
+    assert.equal(result.status, "ok");
+    assert.ok(result.diagnostics.some((d) => d.severity === 1), "expected at least one error diagnostic for syntax error");
 
     // fix so it doesn't pollute subsequent tests
     await writeFile(filePath, "def fixed():\n    pass\n");
@@ -54,16 +52,12 @@ describe("pylsp integration", { skip: !process.env.INTEGRATION }, () => {
     const filePath = join(dir, "clean.py");
     await writeFile(filePath, "def greet(name: str) -> str:\n    return f'hello {name}'\n");
 
-    let result: Awaited<ReturnType<typeof manager.handleEdit>> | undefined;
-    for (let i = 0; i < 15; i++) {
-      result = await manager.handleEdit(filePath, pyConfig, dir);
-      const hasErrors = result.diagnostics.some((d) => d.severity === 1);
-      if (!hasErrors) break;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
+    const result = await pollUntil(
+      () => manager.handleEdit(filePath, pyConfig, dir),
+      (r) => !r.diagnostics.some((d) => d.severity === 1),
+    );
 
-    assert.ok(result, "expected a result");
-    const hasErrors = result!.diagnostics.some((d) => d.severity === 1);
+    const hasErrors = result.diagnostics.some((d) => d.severity === 1);
     assert.equal(hasErrors, false, "expected no error diagnostics on clean file");
   });
 });

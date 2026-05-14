@@ -184,4 +184,22 @@ describe("formatDiagnostics", () => {
     assert.ok(output.includes("main.go"), `expected file path in: ${output}`);
     assert.ok(output.includes("server missing or failed to start"), `expected reason in: ${output}`);
   });
+
+  it("truncates diagnostics beyond cap with a note", () => {
+    const diags = Array.from({ length: 60 }, (_, i) =>
+      makeDiag(DiagnosticSeverity.Error, `error ${i}`, i),
+    );
+    const result: DiagnosticResult = {
+      status: "ok",
+      diagnostics: diags,
+      otherFiles: [],
+      retryAttempts: 0,
+    };
+
+    const output = formatDiagnostics("main.go", result);
+    assert.ok(output.includes("60 errors"), `expected full count in summary: ${output}`);
+    assert.ok(output.includes("... and 10 more"), `expected truncation note: ${output}`);
+    const errorLines = output.split("\n").filter((l) => l.trimStart().startsWith("error"));
+    assert.equal(errorLines.length, 50, "should show at most 50 diagnostic lines");
+  });
 });
