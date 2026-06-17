@@ -4,6 +4,7 @@ import { mkdir, rm, writeFile, chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { which, findWorkspaceRoot, fileUri } from "../src/util.js";
+import { fileURLToPath } from "node:url";
 
 let tempDirs: string[] = [];
 
@@ -28,11 +29,24 @@ describe("fileUri", () => {
   });
 });
 
+describe("fileUri (Windows)", { skip: process.platform !== "win32" }, () => {
+  it("encodes a drive-letter path as a file URL", () => {
+    assert.equal(fileUri("C:\\project\\src\\main.ts"), "file:///C:/project/src/main.ts");
+  });
+
+  it("round-trips a path containing spaces via fileURLToPath", () => {
+    const p = "C:\\My Project\\a b.ts";
+    assert.equal(fileURLToPath(fileUri(p)), p);
+  });
+});
+
 describe("which", () => {
   it("resolves a bare command name that exists on PATH", async () => {
     const result = await which("node");
     assert.ok(result !== null, "expected to find node on PATH");
-    assert.ok(result!.endsWith("node"), `unexpected path: ${result}`);
+    // On Windows PATHEXT resolution yields e.g. node.exe; basename starts with "node".
+    const base = result!.split(/[/\\]/).pop()!.toLowerCase();
+    assert.ok(base.startsWith("node"), `unexpected path: ${result}`);
   });
 
   it("returns null for a bare command name that does not exist", async () => {
@@ -51,13 +65,33 @@ describe("which", () => {
     assert.equal(result, null);
   });
 
-  it("returns null when given an absolute path to a non-executable file", async () => {
+  it("returns null when given an absolute path to a non-executable file", { skip: process.platform === "win32" }, async () => {
     const dir = await makeTempDir();
     const filePath = join(dir, "notexec");
     await writeFile(filePath, "#!/bin/sh\necho hi");
     await chmod(filePath, 0o644); // readable but not executable
     const result = await which(filePath);
     assert.equal(result, null);
+  });
+});
+
+describe("which (Windows)", { skip: process.platform !== "win32" }, () => {
+  const origPath = process.env.PATH;
+  const origPathExt = process.env.PATHEXT;
+
+  afterEach(() => {
+    process.env.PATH = origPath;
+    process.env.PATHEXT = origPathExt;
+  });
+
+  it("resolves a bare command name to its .cmd shim via PATHEXT", async () => {
+    const dir = await makeTempDir();
+    await writeFile(join(dir, "foo.cmd"), "@echo off\r\n");
+    process.env.PATH = dir;
+    process.env.PATHEXT = ".COM;.EXE;.BAT;.CMD";
+    const result = await which("foo");
+    assert.ok(result !== null, "expected to resolve foo via PATHEXT");
+    assert.ok(result!.toLowerCase().endsWith("foo.cmd"), `unexpected path: ${result}`);
   });
 });
 

@@ -14,7 +14,7 @@ npm install
 # typecheck
 npm run check
 
-# unit tests (no servers required, 106 tests)
+# unit tests (no servers required, 118 tests)
 npm test
 
 # integration tests (requires gopls, rust-analyzer, typescript-language-server, pylsp, clangd on PATH)

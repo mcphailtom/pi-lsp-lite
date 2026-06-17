@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { formatDiagnostics } from "../src/format.js";
 import { DiagnosticSeverity, type Diagnostic } from "vscode-languageserver-protocol";
 import type { DiagnosticResult } from "../src/client.js";
+import { pathToFileURL } from "node:url";
 
 function makeDiag(severity: DiagnosticSeverity, message: string, line = 0, col = 0): Diagnostic {
   return {
@@ -201,5 +202,29 @@ describe("formatDiagnostics", () => {
     assert.ok(output.includes("... and 10 more"), `expected truncation note: ${output}`);
     const errorLines = output.split("\n").filter((l) => l.trimStart().startsWith("error"));
     assert.equal(errorLines.length, 50, "should show at most 50 diagnostic lines");
+  });
+});
+
+describe("formatDiagnostics (Windows)", { skip: process.platform !== "win32" }, () => {
+  it("relativizes a drive-letter cross-file URI against cwd", () => {
+    const result: DiagnosticResult = {
+      status: "ok",
+      diagnostics: [],
+      otherFiles: [
+        {
+          uri: pathToFileURL("C:\\project\\src\\other.ts").href,
+          errorCount: 1,
+          warningCount: 0,
+          firstDiagnostic: { severity: DiagnosticSeverity.Error, line: 9, col: 4, message: "undefined: bar" },
+        },
+      ],
+      retryAttempts: 0,
+    };
+
+    const output = formatDiagnostics("src\\main.ts", result, "C:\\project");
+    assert.ok(
+      output.includes("src\\other.ts (1 error): error 10:5 undefined: bar"),
+      `expected relativized windows path in: ${output}`,
+    );
   });
 });
