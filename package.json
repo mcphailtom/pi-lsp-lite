@@ -30,7 +30,8 @@
   },
   "dependencies": {
     "cross-spawn": "^7.0.6",
-    "vscode-languageserver-protocol": "^3.17.5"
+    "vscode-languageserver-protocol": "^3.17.5",
+    "which": "^2.0.2"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
@@ -40,6 +41,7 @@
     "@earendil-works/pi-coding-agent": "^0.74.0",
     "@types/cross-spawn": "^6.0.6",
     "@types/node": "^22.0.0",
+    "@types/which": "^2.0.2",
     "tsx": "^4.21.0",
     "typescript": "^5.4.0"
   },

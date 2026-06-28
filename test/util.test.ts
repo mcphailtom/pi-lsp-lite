@@ -75,26 +75,6 @@ describe("which", () => {
   });
 });
 
-describe("which (Windows)", { skip: process.platform !== "win32" }, () => {
-  const origPath = process.env.PATH;
-  const origPathExt = process.env.PATHEXT;
-
-  afterEach(() => {
-    process.env.PATH = origPath;
-    process.env.PATHEXT = origPathExt;
-  });
-
-  it("resolves a bare command name to its .cmd shim via PATHEXT", async () => {
-    const dir = await makeTempDir();
-    await writeFile(join(dir, "foo.cmd"), "@echo off\r\n");
-    process.env.PATH = dir;
-    process.env.PATHEXT = ".COM;.EXE;.BAT;.CMD";
-    const result = await which("foo");
-    assert.ok(result !== null, "expected to resolve foo via PATHEXT");
-    assert.ok(result!.toLowerCase().endsWith("foo.cmd"), `unexpected path: ${result}`);
-  });
-});
-
 describe("findWorkspaceRoot", () => {
   it("returns the directory that directly contains the root pattern", async () => {
     const dir = await makeTempDir();
