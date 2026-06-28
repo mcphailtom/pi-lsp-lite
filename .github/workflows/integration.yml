@@ -41,20 +41,11 @@ jobs:
 
   typescript:
     name: typescript-language-server
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm install -g typescript-language-server typescript
-      - run: npm ci
-      - run: INTEGRATION=1 npx tsx --test test/*.test.ts test/integration/typescript.test.ts
-
-  typescript-windows:
-    name: typescript-language-server (windows)
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6

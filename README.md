@@ -101,7 +101,7 @@ Servers are lazy (spawn on first edit), idle-shutdown after 240s, and clean up o
 git clone https://github.com/mcphailtom/pi-lsp-lite
 cd pi-lsp-lite && npm install
 npm run check              # typecheck
-npm test                   # unit tests (118, no servers needed)
+npm test                   # unit tests (no servers needed)
 npm run test:integration   # real server tests (needs servers on PATH)
 ```
 
