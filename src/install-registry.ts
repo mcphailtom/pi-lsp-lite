@@ -1,27 +1,37 @@
 export interface InstallEntry {
-  command: string;
+  // Per-platform install command; `win32` overrides `default` on Windows.
+  command: { default: string; win32?: string };
   description: string;
 }
 
 export const installRegistry = new Map<string, InstallEntry>([
   ["go", {
-    command: "go install golang.org/x/tools/gopls@latest",
+    command: { default: "go install golang.org/x/tools/gopls@latest" },
     description: "Go language server",
   }],
   ["rust", {
-    command: "rustup component add rust-analyzer",
+    command: { default: "rustup component add rust-analyzer" },
     description: "Rust language server",
   }],
   ["typescript", {
-    command: "npm install -g typescript-language-server typescript",
+    command: { default: "npm install -g typescript-language-server typescript" },
     description: "TypeScript/JavaScript language server",
   }],
   ["python", {
-    command: "pip install python-lsp-server",
+    command: { default: "pip install python-lsp-server" },
     description: "Python language server",
   }],
   ["cpp", {
-    command: "sudo apt-get install -y clangd || brew install llvm",
+    command: {
+      default: "sudo apt-get install -y clangd || brew install llvm",
+      win32: "winget install -e --id LLVM.clangd",
+    },
     description: "C/C++ language server",
   }],
 ]);
+
+// Resolve the install command for the current platform.
+export function installCommandFor(entry: InstallEntry): string {
+  if (process.platform === "win32" && entry.command.win32) return entry.command.win32;
+  return entry.command.default;
+}

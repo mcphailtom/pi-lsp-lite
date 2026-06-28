@@ -5,7 +5,7 @@ import { formatDiagnostics } from "./src/format.js";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol";
 import { loadConfig, writeGlobalConfig, readGlobalConfig } from "./src/config.js";
 import { fileUri, which, isInsideCwd } from "./src/util.js";
-import { installRegistry } from "./src/install-registry.js";
+import { installRegistry, installCommandFor } from "./src/install-registry.js";
 import { resolve } from "node:path";
 import { realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -263,7 +263,7 @@ export default function (pi: ExtensionAPI) {
           const lang = builtinLanguages.find((l) => l.id === id);
           const binary = lang?.command ?? id;
           const found = await which(binary);
-          return found ? null : { id, command: binary, installCmd: entry.command, description: entry.description };
+          return found ? null : { id, command: binary, installCmd: installCommandFor(entry), description: entry.description };
         }),
       );
       const missing = checks.filter((c): c is NonNullable<typeof c> => c !== null);
@@ -283,7 +283,9 @@ export default function (pi: ExtensionAPI) {
       const confirmed = await ctx.ui.confirm("Confirm install", `Run: ${selected.installCmd}`);
       if (!confirmed) return;
 
-      const result = await pi.exec("sh", ["-c", selected.installCmd]);
+      const result = process.platform === "win32"
+        ? await pi.exec("cmd.exe", ["/c", selected.installCmd])
+        : await pi.exec("sh", ["-c", selected.installCmd]);
       if (result.code !== 0) {
         ctx.ui.notify(`pi-lsp-lite: install failed (exit ${result.code})\n${result.stderr}`, "error");
         return;
