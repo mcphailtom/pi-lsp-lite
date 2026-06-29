@@ -32,3 +32,10 @@ jobs:
 
       - name: unit tests
         run: npm test
+
+  check-required:
+    name: typecheck + unit tests
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - run: echo "typecheck + unit tests matrix passed"

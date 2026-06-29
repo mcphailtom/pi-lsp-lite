@@ -58,6 +58,13 @@ jobs:
         env:
           INTEGRATION: "1"
 
+  typescript-required:
+    name: typescript-language-server
+    runs-on: ubuntu-latest
+    needs: typescript
+    steps:
+      - run: echo "typescript-language-server matrix passed"
+
   pylsp:
     name: pylsp
     runs-on: ubuntu-latest
