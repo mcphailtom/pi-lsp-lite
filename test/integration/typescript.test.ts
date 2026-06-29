@@ -34,9 +34,9 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   });
 
-  it("reports type error", async () => {
-    const filePath = join(dir, "type_error.ts");
-    await writeFile(filePath, "export const x: number = 'hello';\n");
+  it("reports syntax error", async () => {
+    const filePath = join(dir, "syntax_error.ts");
+    await writeFile(filePath, "export const x = ;\n");
 
     const result = await pollUntil(
       () => manager.handleEdit(filePath, tsConfig, dir),
@@ -44,10 +44,10 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
     );
 
     assert.equal(result.status, "ok");
-    assert.ok(result.diagnostics.some((d) => d.severity === 1), "expected at least one error diagnostic for type error");
+    assert.ok(result.diagnostics.some((d) => d.severity === 1), "expected at least one error diagnostic for syntax error");
 
     // fix the error so it doesn't pollute subsequent tests
-    await writeFile(filePath, "export const x: number = 42;\n");
+    await writeFile(filePath, "export const x = 42;\n");
     await manager.handleEdit(filePath, tsConfig, dir);
   });
 
