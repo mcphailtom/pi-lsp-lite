@@ -4,7 +4,7 @@ import { mkdir, rm, writeFile, chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { which, findWorkspaceRoot, fileUri } from "../src/util.js";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 let tempDirs: string[] = [];
 
@@ -24,8 +24,9 @@ afterEach(async () => {
 
 describe("fileUri", () => {
   it("converts an absolute path to a file URL", () => {
-    const uri = fileUri("/tmp/foo/bar.ts");
-    assert.equal(uri, "file:///tmp/foo/bar.ts");
+    const filePath = join(tmpdir(), "foo", "bar.ts");
+    const uri = fileUri(filePath);
+    assert.equal(uri, pathToFileURL(filePath).href);
   });
 });
 
