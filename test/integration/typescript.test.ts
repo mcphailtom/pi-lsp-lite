@@ -34,10 +34,6 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   });
 
-  it("starts typescript-language-server on Windows", { skip: process.platform !== "win32" }, () => {
-    assert.ok(manager.status().some((s) => s.id === "typescript"), "expected typescript-language-server to be running");
-  });
-
   it("reports syntax error", { skip: process.platform === "win32" }, async () => {
     const filePath = join(dir, "syntax_error.ts");
     await writeFile(filePath, "export const x = ;\n");
@@ -68,7 +64,7 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
     assert.equal(hasErrors, false, "expected no error diagnostics on clean file");
   });
 
-  it("detects cross-file breakage", { skip: process.platform === "win32" }, async () => {
+  it("detects cross-file breakage", async () => {
     await writeFile(
       join(dir, "lib.ts"),
       "export function add(a: number, b: number): number {\n  return a + b;\n}\n",
