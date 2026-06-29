@@ -42,13 +42,14 @@
     "@types/cross-spawn": "^6.0.6",
     "@types/node": "^22.0.0",
     "@types/which": "^2.0.2",
+    "cross-env": "^7.0.3",
     "tsx": "^4.21.0",
     "typescript": "^5.4.0"
   },
   "scripts": {
     "check": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
-    "test:integration": "INTEGRATION=1 tsx --test test/*.test.ts test/integration/*.test.ts"
+    "test:integration": "cross-env INTEGRATION=1 tsx --test test/*.test.ts test/integration/*.test.ts"
   },
   "engines": {
     "node": ">=22.19.0"
