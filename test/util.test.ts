@@ -4,6 +4,7 @@ import { mkdir, rm, writeFile, chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { which, findWorkspaceRoot, fileUri } from "../src/util.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 let tempDirs: string[] = [];
 
@@ -23,8 +24,20 @@ afterEach(async () => {
 
 describe("fileUri", () => {
   it("converts an absolute path to a file URL", () => {
-    const uri = fileUri("/tmp/foo/bar.ts");
-    assert.equal(uri, "file:///tmp/foo/bar.ts");
+    const filePath = join(tmpdir(), "foo", "bar.ts");
+    const uri = fileUri(filePath);
+    assert.equal(uri, pathToFileURL(filePath).href);
+  });
+});
+
+describe("fileUri (Windows)", { skip: process.platform !== "win32" }, () => {
+  it("encodes a drive-letter path as a file URL", () => {
+    assert.equal(fileUri("C:\\project\\src\\main.ts"), "file:///C:/project/src/main.ts");
+  });
+
+  it("round-trips a path containing spaces via fileURLToPath", () => {
+    const p = "C:\\My Project\\a b.ts";
+    assert.equal(fileURLToPath(fileUri(p)), p);
   });
 });
 
@@ -32,7 +45,9 @@ describe("which", () => {
   it("resolves a bare command name that exists on PATH", async () => {
     const result = await which("node");
     assert.ok(result !== null, "expected to find node on PATH");
-    assert.ok(result!.endsWith("node"), `unexpected path: ${result}`);
+    // On Windows PATHEXT resolution yields e.g. node.exe; basename starts with "node".
+    const base = result!.split(/[/\\]/).pop()!.toLowerCase();
+    assert.ok(base.startsWith("node"), `unexpected path: ${result}`);
   });
 
   it("returns null for a bare command name that does not exist", async () => {
@@ -51,7 +66,7 @@ describe("which", () => {
     assert.equal(result, null);
   });
 
-  it("returns null when given an absolute path to a non-executable file", async () => {
+  it("returns null when given an absolute path to a non-executable file", { skip: process.platform === "win32" }, async () => {
     const dir = await makeTempDir();
     const filePath = join(dir, "notexec");
     await writeFile(filePath, "#!/bin/sh\necho hi");

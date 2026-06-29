@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22.19.0
           cache: npm
       - uses: actions/setup-go@v6
         with:
@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22.19.0
           cache: npm
       - run: |
           rustup update stable
@@ -41,16 +41,29 @@ jobs:
 
   typescript:
     name: typescript-language-server
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22.19.0
           cache: npm
       - run: npm install -g typescript-language-server typescript
       - run: npm ci
-      - run: INTEGRATION=1 npx tsx --test test/*.test.ts test/integration/typescript.test.ts
+      - run: npx tsx --test test/*.test.ts test/integration/typescript.test.ts
+        env:
+          INTEGRATION: "1"
+
+  typescript-required:
+    name: typescript-language-server
+    runs-on: ubuntu-latest
+    needs: typescript
+    steps:
+      - run: echo "typescript-language-server matrix passed"
 
   pylsp:
     name: pylsp
@@ -59,7 +72,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22.19.0
           cache: npm
       - run: pip install 'python-lsp-server[all]'
       - run: npm ci
@@ -72,7 +85,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22.19.0
           cache: npm
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq clangd
       - run: npm ci

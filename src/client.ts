@@ -285,7 +285,7 @@ export function createLspClient(child: ChildProcess): LspClient {
             timer = setTimeout(() => reject(new Error("shutdown timed out")), SHUTDOWN_TIMEOUT_MS);
           }),
         ]);
-        connection.sendNotification(ExitNotification.type);
+        await connection.sendNotification(ExitNotification.type);
       } catch {
         // timed out or server already exited
       } finally {

@@ -1,29 +1,28 @@
-import { access, constants } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import { join, dirname, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
+import which_ from "which";
 
 export function fileUri(absolutePath: string): string {
   return pathToFileURL(absolutePath).href;
 }
 
+// Find a binary on PATH. Delegates to the `which` package — the same resolver
+// cross-spawn uses to locate the command it launches — so preflight resolution
+// and the eventual spawn agree on every platform.
+function isNotFoundError(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && err.code === "ENOENT";
+}
+
 export async function which(command: string): Promise<string | null> {
-  if (command.includes("/")) {
-    try {
-      await access(command, constants.X_OK);
-      return command;
-    } catch {
-      return null;
+  try {
+    return await which_(command);
+  } catch (err) {
+    if (!isNotFoundError(err)) {
+      console.error(`[pi-lsp-lite] failed to resolve command "${command}":`, err);
     }
+    return null;
   }
-  const pathDirs = (process.env.PATH ?? "").split(":");
-  for (const dir of pathDirs) {
-    const candidate = join(dir, command);
-    try {
-      await access(candidate, constants.X_OK);
-      return candidate;
-    } catch {}
-  }
-  return null;
 }
 
 export async function findWorkspaceRoot(filePath: string, rootPatterns: string[], cwd: string): Promise<string> {
