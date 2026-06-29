@@ -284,7 +284,7 @@ export default function (pi: ExtensionAPI) {
       if (!confirmed) return;
 
       const result = process.platform === "win32"
-        ? await pi.exec("cmd.exe", ["/c", selected.installCmd])
+        ? await pi.exec(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", selected.installCmd])
         : await pi.exec("sh", ["-c", selected.installCmd]);
       if (result.code !== 0) {
         ctx.ui.notify(`pi-lsp-lite: install failed (exit ${result.code})\n${result.stderr}`, "error");
