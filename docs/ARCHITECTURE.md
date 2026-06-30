@@ -122,6 +122,8 @@ Config is loaded in three layers at `session_start`:
 Each layer merges over the previous:
 - New server IDs are added (global config only — project config cannot define new servers for security)
 - Existing server IDs are partially overridden (only specified fields change)
+- Project config can tune safe local behaviour (`disabled`, per-server timeout, `maxRetries`) but cannot override trusted server shape (`command`, `args`, `extensions`, `rootPatterns`) for built-ins
+- Global config owns executable/server-shape changes, including custom servers and built-in command/argv overrides
 - `"disabled": true` removes the server entirely (re-enabling in a later layer requires redefining the full server config)
 - Timeout overrides (`diagnosticTimeout`, `documentIdleTimeout`) cascade from global to per-server
 - Timeout values are clamped to safe bounds
@@ -139,7 +141,7 @@ Config is not hot-reloaded — `/reload` picks up changes via `session_start`.
 
 ## Adding a language
 
-For built-in defaults, add an entry to `builtinLanguages` in `src/languages.ts`. For user-added servers, create a `.pi-lsp-lite.json`:
+For built-in defaults, add an entry to `builtinLanguages` in `src/languages.ts`. For user-added servers, create a global `~/.pi-lsp-lite.json` entry:
 
 ```json
 {

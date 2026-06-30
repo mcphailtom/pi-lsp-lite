@@ -53,7 +53,7 @@ The agent sees these too — they're appended to the tool result, so it can self
 | `pylsp` | Python | `pip install python-lsp-server` |
 | `clangd` | C/C++ | Xcode CLI tools / `apt install clangd` |
 
-Missing a server? `/lsp-add` lets you configure any LSP server that speaks stdio. Or add it to `.pi-lsp-lite.json`:
+Missing a server? `/lsp-add` lets you configure any LSP server that speaks stdio. Or add it to global config (`~/.pi-lsp-lite.json`):
 
 ```json
 {
@@ -70,7 +70,7 @@ Missing a server? `/lsp-add` lets you configure any LSP server that speaks stdio
 
 ## Configuration
 
-Works without config. For customisation, create `.pi-lsp-lite.json` (project) or `~/.pi-lsp-lite.json` (global):
+Works without config. Use project config (`.pi-lsp-lite.json` or `.pi/lsp-lite.json`) for safe local tuning, and global config (`~/.pi-lsp-lite.json`) for trusted executable/server-shape changes like custom servers, `command`, `args`, `extensions`, and `rootPatterns`:
 
 | Field | Description | Default |
 |-------|-------------|---------|
@@ -80,7 +80,7 @@ Works without config. For customisation, create `.pi-lsp-lite.json` (project) or
 | `diagnosticTimeout` | Global default timeout (ms) | `5000` |
 | `documentIdleTimeout` | Close idle documents after (ms) | `120000` |
 
-Project config merges over global. Partial overrides work — only specify what you want to change.
+Project config merges over global for safe tuning fields. Repositories can disable servers and tune timeouts/retries, but they cannot change the executable, argv, extensions, or root patterns for built-in servers; put those trusted changes in global config.
 
 ## How it works
 

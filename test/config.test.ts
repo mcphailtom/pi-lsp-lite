@@ -33,17 +33,18 @@ describe("loadConfig", () => {
     assert.equal(config.documentIdleTimeout, 120000);
   });
 
-  it("project config adds override to existing server", async () => {
+  it("project config can tune existing server retry behaviour", async () => {
     const dir = await makeTempDir();
     await writeFile(join(dir, ".pi-lsp-lite.json"), JSON.stringify({
       servers: {
-        typescript: { args: ["--stdio", "--log-level", "4"] },
+        typescript: { maxRetries: 5 },
       },
     }));
     const config = await loadConfig(dir, join(dir, "nonexistent-global.json"));
     const ts = config.servers.find((s) => s.id === "typescript");
     assert.ok(ts);
-    assert.deepEqual(ts.args, ["--stdio", "--log-level", "4"]);
+    assert.equal(ts.maxRetries, 5);
+    assert.deepEqual(ts.args, ["--stdio"]);
     assert.equal(ts.command, "typescript-language-server");
   });
 
@@ -52,13 +53,14 @@ describe("loadConfig", () => {
     await mkdir(join(dir, ".pi"), { recursive: true });
     await writeFile(join(dir, ".pi", "lsp-lite.json"), JSON.stringify({
       servers: {
-        go: { args: ["serve", "-rpc.trace"] },
+        go: { maxRetries: 1 },
       },
     }));
     const config = await loadConfig(dir, join(dir, "nonexistent-global.json"));
     const go = config.servers.find((s) => s.id === "go");
     assert.ok(go);
-    assert.deepEqual(go.args, ["serve", "-rpc.trace"]);
+    assert.equal(go.maxRetries, 1);
+    assert.deepEqual(go.args, ["serve"]);
   });
 
   it("project config disables a built-in server", async () => {
@@ -89,13 +91,16 @@ describe("loadConfig", () => {
     assert.ok(!config.servers.some((s) => s.id === "haskell"));
   });
 
-  it("project config cannot override command for existing server", async () => {
+  it("project config cannot override privileged server shape for existing server", async () => {
     const dir = await makeTempDir();
     await writeFile(join(dir, ".pi-lsp-lite.json"), JSON.stringify({
       servers: {
         go: {
           command: "evil-gopls",
           args: ["--extra-flag"],
+          extensions: [".evil"],
+          rootPatterns: ["evil.mod"],
+          maxRetries: 2,
         },
       },
     }));
@@ -103,7 +108,10 @@ describe("loadConfig", () => {
     const goServer = config.servers.find((s) => s.id === "go");
     assert.ok(goServer);
     assert.equal(goServer.command, "gopls", "command override from project config should be ignored");
-    assert.deepEqual(goServer.args, ["--extra-flag"], "non-command overrides from project config should still apply");
+    assert.deepEqual(goServer.args, ["serve"], "args override from project config should be ignored");
+    assert.deepEqual(goServer.extensions, [".go"], "extensions override from project config should be ignored");
+    assert.deepEqual(goServer.rootPatterns, ["go.mod"], "rootPatterns override from project config should be ignored");
+    assert.equal(goServer.maxRetries, 2, "safe tuning fields from project config should still apply");
   });
 
   it("global config can define new servers", async () => {
@@ -136,19 +144,20 @@ describe("loadConfig", () => {
     assert.equal(config.diagnosticTimeout, 3000);
   });
 
-  it("partial override changes only specified fields", async () => {
+  it("partial project override changes only safe specified fields", async () => {
     const dir = await makeTempDir();
     await writeFile(join(dir, ".pi-lsp-lite.json"), JSON.stringify({
       servers: {
-        typescript: { args: ["--stdio", "--log-level", "4"] },
+        typescript: { maxRetries: 4 },
       },
     }));
     const config = await loadConfig(dir, join(dir, "nonexistent-global.json"));
     const ts = config.servers.find((s) => s.id === "typescript");
     assert.ok(ts);
-    assert.deepEqual(ts.args, ["--stdio", "--log-level", "4"]);
+    assert.deepEqual(ts.args, ["--stdio"]);
     assert.equal(ts.command, "typescript-language-server");
     assert.deepEqual(ts.extensions, [".ts", ".tsx", ".js", ".jsx"]);
+    assert.equal(ts.maxRetries, 4);
   });
 
   it("skips new server without required fields from global config", async () => {

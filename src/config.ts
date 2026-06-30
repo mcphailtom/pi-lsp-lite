@@ -183,9 +183,13 @@ function mergeConfigs(
     const existing = result.get(id);
     if (existing) {
       const { disabled: _, diagnosticTimeout: __, ...lspFields } = override;
-      if (source === "project" && lspFields.command !== undefined) {
-        console.error(`[pi-lsp-lite] project config cannot override "command" for server "${id}" — ignoring (use global config instead)`);
-        delete lspFields.command;
+      if (source === "project") {
+        for (const field of ["command", "args", "extensions", "rootPatterns"] as const) {
+          if (lspFields[field] !== undefined) {
+            console.error(`[pi-lsp-lite] project config cannot override "${field}" for server "${id}" — ignoring (use global config instead)`);
+            delete lspFields[field];
+          }
+        }
       }
       const defined = Object.fromEntries(
         Object.entries(lspFields).filter(([, v]) => v !== undefined),
