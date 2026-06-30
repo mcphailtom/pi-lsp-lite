@@ -6,6 +6,7 @@ import { DiagnosticSeverity } from "vscode-languageserver-protocol";
 import { loadConfig, writeGlobalConfig, readGlobalConfig } from "./src/config.js";
 import { fileUri, which, isInsideCwd } from "./src/util.js";
 import { installRegistry, installCommandFor } from "./src/install-registry.js";
+import { buildServerStates, formatServerStates } from "./src/status.js";
 import { resolve } from "node:path";
 import { realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -27,6 +28,17 @@ export default function (pi: ExtensionAPI) {
     for (const warning of checkExtensionOverlaps(servers)) {
       console.error(`[pi-lsp-lite] ${warning}`);
     }
+  }
+
+  async function currentServerStates() {
+    return buildServerStates({
+      builtins: builtinLanguages,
+      active: servers,
+      globalConfig: await readGlobalConfig(),
+      running: manager.status(),
+      installRegistry,
+      resolveCommand: which,
+    });
   }
 
   pi.on("session_start", async (_event, ctx) => {
@@ -71,19 +83,9 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("lsp-status", {
-    description: "Show running LSP servers and recent diagnostic counts",
+    description: "Show configured LSP servers, install state, and running processes",
     handler: async (_args, ctx) => {
-      const running = manager.status();
-      if (running.length === 0) {
-        ctx.ui.notify("pi-lsp-lite: no servers running", "info");
-        return;
-      }
-      const lines = running.map((s) => {
-        const idle = Math.round((Date.now() - s.lastActivity) / 1000);
-        const up = Math.round(s.uptime / 1000);
-        return `${s.id} (pid ${s.pid}) root=${s.root} — ${s.openDocuments} open files, up ${up}s, idle ${idle}s`;
-      });
-      ctx.ui.notify(lines.join("\n"), "info");
+      ctx.ui.notify(formatServerStates(await currentServerStates()), "info");
     },
   });
 
@@ -169,18 +171,19 @@ export default function (pi: ExtensionAPI) {
       const rootPatterns = rootRaw ? rootRaw.split(",").map((r) => r.trim()).filter(Boolean) : [];
 
       const resolved = await which(command);
-      if (!resolved) {
-        ctx.ui.notify(`pi-lsp-lite: "${command}" not found on PATH — server added but won't start until installed`, "warning");
-      }
-
       await writeGlobalConfig({ servers: { [id]: { command, args, extensions, rootPatterns } } });
       await initConfig(ctx.cwd);
-      ctx.ui.notify(`pi-lsp-lite: added server "${id}"`, "info");
+
+      if (!resolved) {
+        ctx.ui.notify(`pi-lsp-lite: configured server "${id}", but "${command}" is missing from PATH — install it manually before use`, "warning");
+        return;
+      }
+      ctx.ui.notify(`pi-lsp-lite: configured server "${id}" (${resolved})`, "info");
     },
   });
 
   pi.registerCommand("lsp-remove", {
-    description: "Remove or disable a language server",
+    description: "Disable a language server",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) {
         ctx.ui.notify("pi-lsp-lite: /lsp-remove requires interactive mode", "error");
@@ -193,10 +196,10 @@ export default function (pi: ExtensionAPI) {
       }
 
       const ids = servers.map((s) => s.id);
-      const selected = await ctx.ui.select("Remove which server?", ids);
+      const selected = await ctx.ui.select("Disable which server?", ids);
       if (!selected) return;
 
-      const confirmed = await ctx.ui.confirm("Confirm removal", `Disable server "${selected}"?`);
+      const confirmed = await ctx.ui.confirm("Confirm disable", `Disable server "${selected}"?`);
       if (!confirmed) return;
 
       await writeGlobalConfig({ servers: { [selected]: { disabled: true } } });
@@ -246,7 +249,23 @@ export default function (pi: ExtensionAPI) {
       }
 
       await initConfig(ctx.cwd);
-      ctx.ui.notify(`pi-lsp-lite: ${isCurrentlyEnabled ? "disabled" : "enabled"} server "${id}"`, "info");
+
+      if (isCurrentlyEnabled) {
+        ctx.ui.notify(`pi-lsp-lite: disabled server "${id}"`, "info");
+        return;
+      }
+
+      const state = (await currentServerStates()).find((s) => s.id === id);
+      if (state?.installed === false) {
+        const installHint = state.installable ? "run /lsp-install" : "install it manually";
+        ctx.ui.notify(`pi-lsp-lite: enabled server "${id}", but "${state.command}" is missing from PATH — ${installHint} before use`, "warning");
+        return;
+      }
+      if (state?.installed === null) {
+        ctx.ui.notify(`pi-lsp-lite: enabled server "${id}", but its command is incomplete — check global config`, "warning");
+        return;
+      }
+      ctx.ui.notify(`pi-lsp-lite: enabled server "${id}"`, "info");
     },
   });
 
@@ -269,7 +288,7 @@ export default function (pi: ExtensionAPI) {
       const missing = checks.filter((c): c is NonNullable<typeof c> => c !== null);
 
       if (missing.length === 0) {
-        ctx.ui.notify("pi-lsp-lite: all known servers are available", "info");
+        ctx.ui.notify("pi-lsp-lite: all built-in installable servers are available; custom servers must be installed manually", "info");
         return;
       }
 
