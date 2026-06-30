@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "cross-spawn": "^7.0.6",
-    "vscode-languageserver-protocol": "^3.17.5",
+    "vscode-languageserver-protocol": "~3.18.1",
     "which": "^2.0.2"
   },
   "peerDependencies": {

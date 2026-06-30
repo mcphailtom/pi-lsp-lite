@@ -13,7 +13,7 @@ import {
   DiagnosticSeverity,
   type InitializeParams,
   type Diagnostic,
-} from "vscode-languageserver-protocol/node.js";
+} from "vscode-languageserver-protocol/node";
 import type { ChildProcess } from "node:child_process";
 import { fileUri } from "./util.js";
 
@@ -54,8 +54,12 @@ function countDiagnostics(diags: Diagnostic[]): { errors: number; warnings: numb
   return { errors, warnings };
 }
 
+function diagnosticMessage(d: Diagnostic): string {
+  return typeof d.message === "string" ? d.message : d.message.value;
+}
+
 function diagnosticFingerprint(d: Diagnostic): string {
-  return `${d.severity}:${d.range.start.line}:${d.range.start.character}:${d.message}`;
+  return `${d.severity}:${d.range.start.line}:${d.range.start.character}:${diagnosticMessage(d)}`;
 }
 
 function fingerprintSet(diags: Diagnostic[]): Set<string> {
@@ -202,7 +206,7 @@ export function createLspClient(child: ChildProcess): LspClient {
                 severity: first.severity ?? DiagnosticSeverity.Error,
                 line: first.range.start.line,
                 col: first.range.start.character,
-                message: first.message,
+                message: diagnosticMessage(first),
                 ...(first.source && { source: first.source }),
               },
             }),

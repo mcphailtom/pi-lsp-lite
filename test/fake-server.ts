@@ -14,7 +14,7 @@ import {
   type Diagnostic,
   type InitializeResult,
   type TextDocumentSyncKind,
-} from "vscode-languageserver-protocol/node.js";
+} from "vscode-languageserver-protocol/node";
 
 export interface FakeServerOptions {
   diagnosticDelay?: number;
@@ -106,8 +106,8 @@ export function startFakeServer(options: FakeServerOptions = {}) {
   connection.onNotification(DidCloseTextDocumentNotification.type, () => {});
 
   connection.onRequest(ShutdownRequest.type, () => {
-    if (neverShutdown) return new Promise(() => {});
-    return null;
+    if (neverShutdown) return new Promise<void>(() => {});
+    return undefined;
   });
   connection.onNotification(ExitNotification.type, () => {
     process.exit(0);
