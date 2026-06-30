@@ -50,7 +50,7 @@ The agent sees these too — they're appended to the tool result, so it can self
 | `gopls` | Go | `go install golang.org/x/tools/gopls@latest` |
 | `rust-analyzer` | Rust | `rustup component add rust-analyzer` |
 | `typescript-language-server` | TypeScript/JS | `npm install -g typescript-language-server typescript` |
-| `pylsp` | Python | `python3 -m pip install python-lsp-server` |
+| `pylsp` | Python | `python3 -m pip install python-lsp-server` / Windows: `py -m pip install python-lsp-server` |
 | `clangd` | C/C++ | Xcode CLI tools / `apt install clangd` |
 
 Missing a server? `/lsp-add` lets you configure any LSP server that speaks stdio. Or add it to global config (`~/.pi-lsp-lite.json`):
