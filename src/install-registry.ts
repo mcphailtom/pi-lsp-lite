@@ -18,7 +18,10 @@ export const installRegistry = new Map<string, InstallEntry>([
     description: "TypeScript/JavaScript language server",
   }],
   ["python", {
-    command: { default: "pip install python-lsp-server" },
+    command: {
+      default: "python3 -m pip install python-lsp-server",
+      win32: "py -m pip install python-lsp-server",
+    },
     description: "Python language server",
   }],
   ["cpp", {
