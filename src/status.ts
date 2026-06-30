@@ -33,11 +33,11 @@ function commandFor(id: string, active: Map<string, LanguageServerConfig>, built
   const activeConfig = active.get(id);
   if (activeConfig) return activeConfig.command;
 
-  const builtin = builtins.get(id);
-  if (builtin) return builtin.command;
-
   const globalCommand = globalConfig?.servers?.[id]?.command;
-  return typeof globalCommand === "string" && globalCommand.length > 0 ? globalCommand : null;
+  if (typeof globalCommand === "string" && globalCommand.length > 0) return globalCommand;
+
+  const builtin = builtins.get(id);
+  return builtin?.command ?? null;
 }
 
 export async function buildServerStates(options: BuildServerStatesOptions): Promise<ServerState[]> {

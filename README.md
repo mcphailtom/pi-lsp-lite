@@ -80,7 +80,7 @@ Works without config. Use project config (`.pi-lsp-lite.json` or `.pi/lsp-lite.j
 | `diagnosticTimeout` | Global default timeout (ms) | `5000` |
 | `documentIdleTimeout` | Close idle documents after (ms) | `120000` |
 
-Project config merges over global for safe tuning fields. Repositories can disable servers and tune timeouts/retries, but they cannot change the executable, argv, extensions, or root patterns for built-in servers; put those trusted changes in global config.
+Project config merges over global for safe tuning fields. Repositories can disable servers and tune timeouts/retries, but they cannot change the executable, argv, extensions, or root patterns for any existing server; put those trusted changes in global config.
 
 ## How it works
 

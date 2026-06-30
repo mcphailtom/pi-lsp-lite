@@ -73,6 +73,29 @@ describe("buildServerStates", () => {
     assert.equal(haskell.command, "haskell-language-server-wrapper");
     assert.equal(haskell.installed, false);
   });
+  it("uses global command overrides when a built-in is disabled", async () => {
+    const states = await buildServerStates({
+      builtins: [builtinTs],
+      active: [],
+      globalConfig: {
+        servers: {
+          typescript: {
+            disabled: true,
+            command: "custom-typescript-language-server",
+          },
+        },
+      },
+      running: [],
+      installRegistry,
+      resolveCommand: async (command) => command === "custom-typescript-language-server" ? "/bin/custom-typescript-language-server" : null,
+    });
+
+    const typescript = states.find((s) => s.id === "typescript");
+    assert.ok(typescript);
+    assert.equal(typescript.enabled, false);
+    assert.equal(typescript.command, "custom-typescript-language-server");
+    assert.equal(typescript.installed, true);
+  });
 });
 
 describe("formatServerStates", () => {
