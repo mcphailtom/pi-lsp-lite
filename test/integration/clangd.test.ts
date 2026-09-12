@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { createServerManager } from "../../src/server-manager.js";
 import { builtinLanguages as languages } from "../../src/languages.js";
 import { pollUntil } from "../poll-until.js";
+import { isCleanResult } from "../clean-result.js";
 
 const cppConfig = languages.find((l) => l.id === "cpp");
 if (!cppConfig) throw new Error("cpp config not found in languages");
@@ -38,11 +39,10 @@ describe("clangd integration", { skip: !process.env.INTEGRATION }, () => {
 
     const result = await pollUntil(
       () => manager.handleEdit(join(dir, "main.c"), cppConfig, dir),
-      (r) => !r.diagnostics.some((d) => d.severity === 1),
+      isCleanResult,
     );
 
-    const hasErrors = result.diagnostics.some((d) => d.severity === 1);
-    assert.equal(hasErrors, false, "expected no error diagnostics on clean file");
+    assert.ok(isCleanResult(result), `expected successful diagnostics with no errors on clean file, got ${JSON.stringify(result)}`);
   });
 
   it("reports syntax error", async () => {

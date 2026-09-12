@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { createServerManager } from "../../src/server-manager.js";
 import { builtinLanguages as languages } from "../../src/languages.js";
 import { pollUntil } from "../poll-until.js";
+import { isCleanResult } from "../clean-result.js";
 
 const tsConfig = languages.find((l) => l.id === "typescript");
 if (!tsConfig) throw new Error("typescript config not found in languages");
@@ -57,11 +58,10 @@ describe("typescript-language-server integration", { skip: !process.env.INTEGRAT
 
     const result = await pollUntil(
       () => manager.handleEdit(filePath, tsConfig, dir),
-      (r) => !r.diagnostics.some((d) => d.severity === 1),
+      isCleanResult,
     );
 
-    const hasErrors = result.diagnostics.some((d) => d.severity === 1);
-    assert.equal(hasErrors, false, "expected no error diagnostics on clean file");
+    assert.ok(isCleanResult(result), `expected successful diagnostics with no errors on clean file, got ${JSON.stringify(result)}`);
   });
 
   it("detects cross-file breakage", async () => {

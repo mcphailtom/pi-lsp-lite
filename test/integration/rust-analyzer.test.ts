@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { createServerManager } from "../../src/server-manager.js";
 import { builtinLanguages as languages } from "../../src/languages.js";
 import { pollUntil } from "../poll-until.js";
+import { isCleanResult } from "../clean-result.js";
 
 const rustConfig = languages.find((l) => l.id === "rust")!;
 
@@ -52,11 +53,10 @@ describe("rust-analyzer integration", { skip: !process.env.INTEGRATION }, () => 
 
     const result = await pollUntil(
       () => manager.handleEdit(join(srcDir, "main.rs"), rustConfig, dir),
-      (r) => !r.diagnostics.some((d) => d.severity === 1),
+      isCleanResult,
     );
 
-    const hasErrors = result.diagnostics.some((d) => d.severity === 1);
-    assert.equal(hasErrors, false, "expected no error diagnostics on clean file");
+    assert.ok(isCleanResult(result), `expected successful diagnostics with no errors on clean file, got ${JSON.stringify(result)}`);
   });
 
   it("detects cross-file breakage", async () => {
