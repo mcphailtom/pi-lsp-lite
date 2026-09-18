@@ -137,11 +137,12 @@ async function readConfigFile(path: string): Promise<UserConfig | null> {
   }
 }
 
-async function findProjectConfig(cwd: string): Promise<UserConfig | null> {
+async function findProjectConfig(cwd: string, globalPath: string): Promise<UserConfig | null> {
   for (const candidate of [
     join(cwd, ".pi-lsp-lite.json"),
     join(cwd, ".pi", "lsp-lite.json"),
   ]) {
+    if (candidate === globalPath) continue;
     const config = await readConfigFile(candidate);
     if (config) return config;
   }
@@ -277,8 +278,9 @@ function deepMerge(target: Record<string, unknown>, source: Record<string, unkno
 }
 
 export async function loadConfig(cwd: string, globalConfigPath?: string): Promise<ResolvedConfig> {
-  const globalConfig = await readConfigFile(globalConfigFilePath(globalConfigPath));
-  const projectConfig = await findProjectConfig(cwd);
+  const globalPath = globalConfigFilePath(globalConfigPath);
+  const globalConfig = await readConfigFile(globalPath);
+  const projectConfig = await findProjectConfig(cwd, globalPath);
 
   let servers = [...builtinLanguages];
   const perServerTimeout = new Map<string, number>();

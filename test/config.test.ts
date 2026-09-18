@@ -114,6 +114,21 @@ describe("loadConfig", () => {
     assert.equal(goServer.maxRetries, 2, "safe tuning fields from project config should still apply");
   });
 
+  it("global config is not re-applied as project config when cwd holds it", async () => {
+    const dir = await makeTempDir();
+    const globalPath = join(dir, ".pi-lsp-lite.json");
+    await writeFile(globalPath, JSON.stringify({
+      servers: {
+        go: { command: "my-gopls", args: ["lsp"] },
+      },
+    }));
+    const config = await loadConfig(dir, globalPath);
+    const goServer = config.servers.find((s) => s.id === "go");
+    assert.ok(goServer);
+    assert.equal(goServer.command, "my-gopls");
+    assert.deepEqual(goServer.args, ["lsp"]);
+  });
+
   it("global config can define new servers", async () => {
     const dir = await makeTempDir();
     const globalPath = join(dir, "global.json");
