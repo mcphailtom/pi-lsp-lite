@@ -1,7 +1,7 @@
 {
   "name": "pi-lsp-lite",
   "version": "0.5.1",
-  "description": "LSP diagnostics for pi — errors and warnings on every edit, same turn. Go, Rust, TypeScript, Python, C/C++.",
+  "description": "Same-turn LSP diagnostics for supported pi file edits. Go, Rust, TypeScript/JavaScript, Python, and C/C++.",
   "type": "module",
   "private": false,
   "license": "MIT",
